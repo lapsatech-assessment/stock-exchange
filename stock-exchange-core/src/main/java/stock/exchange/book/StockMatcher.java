@@ -15,6 +15,24 @@ import stock.exchange.domain.DoubleReference;
  */
 public interface StockMatcher {
 
+  @FunctionalInterface
+  interface OrderMatchedEventListener {
+
+    void onOrderMatched(long buyersOrderId, long sellersOrderId, int quantity, double buyerPrice, double sellerPrice);
+  }
+
+  @FunctionalInterface
+  interface OrderPartiallyFilledEventListener {
+
+    void onOrderPartialyFilled(long orderId, int quantityLeft);
+  }
+
+  @FunctionalInterface
+  public interface OrderFulfilledEventListener {
+
+    void onOrderFulfilled(long orderId);
+  }
+
   /**
    * The method adds 'Buy' Limit Order to the queue
    * 

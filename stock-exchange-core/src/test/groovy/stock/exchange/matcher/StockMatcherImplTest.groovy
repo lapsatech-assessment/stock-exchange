@@ -2,11 +2,11 @@ package stock.exchange.matcher
 
 import spock.lang.Specification
 import spock.lang.Subject
-import stock.exchange.book.OrderFulfilledEventListener
-import stock.exchange.book.OrderMatchedEventListener
-import stock.exchange.book.OrderPartiallyFilledEventListener
 import stock.exchange.book.OrderPartiallyFilledException
 import stock.exchange.book.StockMatcherImpl
+import stock.exchange.book.StockMatcher.OrderFulfilledEventListener
+import stock.exchange.book.StockMatcher.OrderMatchedEventListener
+import stock.exchange.book.StockMatcher.OrderPartiallyFilledEventListener
 import stock.exchange.domain.DoubleReference
 
 class StockMatcherImplTest extends Specification {
@@ -277,8 +277,8 @@ class StockMatcherImplTest extends Specification {
 
   def 'market orders only : check general matching'() {
     given:
-    marketPriceRef.getAsDouble() >>> [ 666.00d, 777.00d, 888.00d ]
-    
+    marketPriceRef.getAsDouble() >>> [666.00d, 777.00d, 888.00d]
+
     subject.addOrderBuy(100001, 100) // 1st match
     subject.addOrderBuy(100002, 50) // 2nd match
 
@@ -295,7 +295,7 @@ class StockMatcherImplTest extends Specification {
     1 * orderMatchListener.onOrderMatched(100001, 200001, 100, 666.00d, 666.00d)
     1 * orderFulfilledEventListener.onOrderFulfilled(100001)
     1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(200001, 50)
-    
+
     then: '2nd'
     1 * orderMatchListener.onOrderMatched(100002, 200001, 50, 666.00d, 666.00d)
     1 * orderFulfilledEventListener.onOrderFulfilled(100002)
