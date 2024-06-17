@@ -13,7 +13,6 @@ import stock.exchange.domain.OrderMatchRecord;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TradeRecord;
-import stock.exchange.instrument.MarketDataWrites;
 import stock.exchange.matcher.StockMatcher;
 import stock.exchange.trade.TradeManager;
 
@@ -25,28 +24,22 @@ public class OrderBookManagerImpl implements OrderBookManager {
   private final Supplier<StockMatcher> stockMatcherFactory;
 
   private final TradeManager tradeManager;
-  private final MarketDataWrites marketDataWrites;
 
   private final NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream;
   private final NonblockingNonFailingDownstream<TradeRecord> tradeDownstream;
   private final NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeExecutionRejected;
-  private final NonblockingNonFailingJunkDownstream<TradeRecord> marketDataAcceptRejected;
 
   public OrderBookManagerImpl(
       Supplier<StockMatcher> stockMatcherFactory,
       TradeManager tradeManager,
-      MarketDataWrites marketDataWrites,
       NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream,
       NonblockingNonFailingDownstream<TradeRecord> tradeDownstream,
-      NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeExecutionRejected,
-      NonblockingNonFailingJunkDownstream<TradeRecord> marketDataAcceptRejected) {
+      NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeExecutionRejected) {
     this.stockMatcherFactory = stockMatcherFactory;
     this.tradeManager = tradeManager;
-    this.marketDataWrites = marketDataWrites;
     this.filledOrderDownstream = filledOrderDownstream;
     this.tradeDownstream = tradeDownstream;
     this.tradeExecutionRejected = tradeExecutionRejected;
-    this.marketDataAcceptRejected = marketDataAcceptRejected;
     ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
     this.reader = rw.readLock();
     this.writer = rw.writeLock();
@@ -63,11 +56,9 @@ public class OrderBookManagerImpl implements OrderBookManager {
           instrument,
           stockMatcherFactory.get(),
           tradeManager,
-          marketDataWrites,
           filledOrderDownstream,
           tradeDownstream,
-          tradeExecutionRejected,
-          marketDataAcceptRejected);
+          tradeExecutionRejected);
       books.put(instrument.id(), book);
       return book;
     } finally {
