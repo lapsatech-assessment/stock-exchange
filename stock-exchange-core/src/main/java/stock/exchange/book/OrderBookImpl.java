@@ -10,14 +10,16 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import stock.exchange.NonblockingNonFailingBiDownstream;
 import stock.exchange.NonblockingNonFailingDownstream;
+import stock.exchange.NonblockingNonFailingJunkDownstream;
+import stock.exchange.domain.OrderMatchRecord;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.OrderType;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TradeRecord;
 import stock.exchange.domain.TraderRecord;
-import stock.exchange.instrument.OrderMatchRecord;
+import stock.exchange.instrument.MarketDataException;
+import stock.exchange.instrument.MarketDataWrites;
 import stock.exchange.matcher.StockMatcher;
 import stock.exchange.trade.TradeExecutionException;
 import stock.exchange.trade.TradeManager;
@@ -30,13 +32,14 @@ public class OrderBookImpl implements OrderBook {
 
   private final StockMatcher stockMatcher;
   private final TradeManager tradeManager;
+  private final MarketDataWrites marketDataWrites;
 
   private final Long2ObjectMap<OrderRecord> orders = new Long2ObjectArrayMap<>();
 
   private final NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream;
   private final NonblockingNonFailingDownstream<TradeRecord> tradeDownstream;
-
-  private final NonblockingNonFailingBiDownstream<OrderMatchRecord, Throwable> tradeExecutionRejected;
+  private final NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeExecutionRejected;
+  private final NonblockingNonFailingJunkDownstream<TradeRecord> marketDataAcceptRejected;
 
   private final Object sync = new Object();
 
@@ -44,16 +47,20 @@ public class OrderBookImpl implements OrderBook {
       SecurityRecord instrument,
       StockMatcher stockMatcher,
       TradeManager tradeManager,
+      MarketDataWrites marketDataWrites,
       NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream,
       NonblockingNonFailingDownstream<TradeRecord> tradeDownstream,
-      NonblockingNonFailingBiDownstream<OrderMatchRecord, Throwable> tradeValidationRejected) {
+      NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeExecutionRejected,
+      NonblockingNonFailingJunkDownstream<TradeRecord> marketDataAcceptRejected) {
     this.logger = LoggerFactory.getLogger("BOOK." + instrument.symbol());
     this.instrument = instrument;
     this.stockMatcher = stockMatcher;
     this.tradeManager = tradeManager;
+    this.marketDataWrites = marketDataWrites;
     this.filledOrderDownstream = filledOrderDownstream;
     this.tradeDownstream = tradeDownstream;
-    this.tradeExecutionRejected = tradeValidationRejected;
+    this.tradeExecutionRejected = tradeExecutionRejected;
+    this.marketDataAcceptRejected = marketDataAcceptRejected;
   }
 
   @Override
@@ -77,6 +84,13 @@ public class OrderBookImpl implements OrderBook {
                     .accept(new OrderMatchRecord(buyersOrderId, sellersOrderId, quantity, buyerPrice, sellerPrice), e);
                 return;
               }
+
+              try {
+                marketDataWrites.acceptLastTradePrice(trade.instrument().id(), trade.price(), trade.quantity());
+              } catch (MarketDataException e) {
+                marketDataAcceptRejected.accept(trade, e);
+              }
+
               tradeDownstream.accept(trade);
             } catch (RuntimeException e) {
               logger.error("Failed to process order match event", e);

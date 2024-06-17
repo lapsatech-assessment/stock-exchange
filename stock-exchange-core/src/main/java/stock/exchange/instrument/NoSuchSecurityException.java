@@ -1,9 +1,7 @@
 package stock.exchange.instrument;
 
-import stock.exchange.common.CommonException;
-
 @SuppressWarnings("serial")
-public class NoSuchSecurityException extends CommonException {
+public class NoSuchSecurityException extends MarketDataException {
 
   public NoSuchSecurityException() {
   }

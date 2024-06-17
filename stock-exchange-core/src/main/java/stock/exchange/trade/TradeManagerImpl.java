@@ -5,15 +5,8 @@ import java.util.UUID;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TradeRecord;
-import stock.exchange.instrument.MarketDataWrites;
 
 public class TradeManagerImpl implements TradeManager {
-
-  private final MarketDataWrites marketDataWrites;
-
-  public TradeManagerImpl(MarketDataWrites marketDataWrites) {
-    this.marketDataWrites = marketDataWrites;
-  }
 
   @Override
   public TradeRecord executeTrade(
@@ -35,15 +28,13 @@ public class TradeManagerImpl implements TradeManager {
     try {
       double tradePrice = (buyerPrice + sellerPrice) / 2; // avg
       long tradeId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-      var trade = new TradeRecord(
+      return new TradeRecord(
           tradeId,
           instrument,
           buyOrder.trader(),
           sellOrder.trader(),
           quantity,
           tradePrice);
-      marketDataWrites.acceptLastTradePrice(instrument.id(), tradePrice, quantity);
-      return trade;
     } catch (RuntimeException e) {
       throw new TradeExecutionException(e);
     }

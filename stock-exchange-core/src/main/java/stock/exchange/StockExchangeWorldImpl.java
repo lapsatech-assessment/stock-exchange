@@ -4,42 +4,30 @@ import java.time.Duration;
 
 import stock.exchange.book.OrderBook;
 import stock.exchange.book.OrderBookManager;
-import stock.exchange.book.OrderBookManagerImpl;
 import stock.exchange.domain.CompositeRecord;
 import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TraderRecord;
 import stock.exchange.instrument.InstrumentManager;
-import stock.exchange.instrument.MarketDataWorld;
-import stock.exchange.instrument.MarketDataWrites;
-import stock.exchange.matcher.StockMatcherImpl;
-import stock.exchange.trade.TradeManager;
-import stock.exchange.trade.TradeManagerImpl;
 import stock.exchange.trader.TraderManager;
-import stock.exchange.trader.TraderManagerImpl;
 
 public class StockExchangeWorldImpl implements StockExchangeWorld {
 
-  private final MarketDataWrites marketDataWrites;
   private final InstrumentManager instrumentManager;
-  private final TradeManager tradeManager;
   private final TraderManager traderManager;
   private final StockMarketRunner stockMarketRunner;
   private final OrderBookManager orderBookManager;
 
-  public StockExchangeWorldImpl() {
-    MarketDataWorld mds = new MarketDataWorld();
-    this.marketDataWrites = mds;
-    this.instrumentManager = mds;
-    this.tradeManager = new TradeManagerImpl(marketDataWrites);
-    this.traderManager = new TraderManagerImpl();
-    this.orderBookManager = new OrderBookManagerImpl(
-        StockMatcherImpl::new,
-        new OrderFulfilledLoggerDownstream(),
-        new TradeHappenLoggerDownstream(),
-        new TradeExecutionFailedLoggerDownstream());
-    this.stockMarketRunner = new StockMarketRunnerImpl();
+  public StockExchangeWorldImpl(
+      InstrumentManager instrumentManager,
+      TraderManager traderManager,
+      StockMarketRunner stockMarketRunner,
+      OrderBookManager orderBookManager) {
+    this.instrumentManager = instrumentManager;
+    this.traderManager = traderManager;
+    this.stockMarketRunner = stockMarketRunner;
+    this.orderBookManager = orderBookManager;
   }
 
   @Override
@@ -50,7 +38,7 @@ public class StockExchangeWorldImpl implements StockExchangeWorld {
   @Override
   public SecurityRecord createSecurity(int instrumentId, String symbol, double initialPrice) {
     var instrument = instrumentManager.createSecurity(instrumentId, symbol, initialPrice);
-    OrderBook book = orderBookManager.addOrderBook(instrument, tradeManager);
+    OrderBook book = orderBookManager.createOrderBook(instrument);
     stockMarketRunner.run(book, Duration.ofMillis(1000));
     return instrument;
   }
