@@ -16,7 +16,7 @@ public class TradeManagerImpl implements TradeManager {
   }
 
   @Override
-  public TradeRecord createTrade(
+  public TradeRecord executeTrade(
       SecurityRecord instrument,
       OrderRecord buyOrder,
       OrderRecord sellOrder,
@@ -24,25 +24,29 @@ public class TradeManagerImpl implements TradeManager {
       double buyerPrice,
       double sellerPrice) {
     if (buyerPrice <= 0) {
-      throw new TradeExecutionInvalidPriceValidationException(buyerPrice);
+      throw new TradeInvalidPriceValidationException(buyerPrice);
     }
     if (sellerPrice <= 0) {
-      throw new TradeExecutionInvalidPriceValidationException(sellerPrice);
+      throw new TradeInvalidPriceValidationException(sellerPrice);
     }
     if (buyerPrice < sellerPrice) {
-      throw new TradeExecutionPriceMistmachValidationException(buyerPrice, sellerPrice);
+      throw new TradePriceMistmachValidationException(buyerPrice, sellerPrice);
     }
-    double tradePrice = (buyerPrice + sellerPrice) / 2; // avg
-    long tradeId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-    var trade = new TradeRecord(
-        tradeId,
-        instrument,
-        buyOrder.trader(),
-        sellOrder.trader(),
-        quantity,
-        tradePrice);
-    marketDataWrites.acceptLastTradePrice(instrument.id(), tradePrice, quantity);
-    return trade;
+    try {
+      double tradePrice = (buyerPrice + sellerPrice) / 2; // avg
+      long tradeId = Math.abs(UUID.randomUUID().getMostSignificantBits());
+      var trade = new TradeRecord(
+          tradeId,
+          instrument,
+          buyOrder.trader(),
+          sellOrder.trader(),
+          quantity,
+          tradePrice);
+      marketDataWrites.acceptLastTradePrice(instrument.id(), tradePrice, quantity);
+      return trade;
+    } catch (RuntimeException e) {
+      throw new TradeExecutionException(e);
+    }
   }
 
 }

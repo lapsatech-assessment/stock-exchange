@@ -5,7 +5,6 @@ import java.time.Duration;
 import stock.exchange.book.OrderBook;
 import stock.exchange.book.OrderBookManager;
 import stock.exchange.book.OrderBookManagerImpl;
-import stock.exchange.book.StockMatcherImpl;
 import stock.exchange.domain.CompositeRecord;
 import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.OrderRecord;
@@ -14,6 +13,7 @@ import stock.exchange.domain.TraderRecord;
 import stock.exchange.instrument.InstrumentManager;
 import stock.exchange.instrument.MarketDataWorld;
 import stock.exchange.instrument.MarketDataWrites;
+import stock.exchange.matcher.StockMatcherImpl;
 import stock.exchange.trade.TradeManager;
 import stock.exchange.trade.TradeManagerImpl;
 import stock.exchange.trader.TraderManager;
@@ -37,7 +37,8 @@ public class StockExchangeWorldImpl implements StockExchangeWorld {
     this.orderBookManager = new OrderBookManagerImpl(
         StockMatcherImpl::new,
         new OrderFulfilledLoggerDownstream(),
-        new TradeHappenLoggerDownstream());
+        new TradeHappenLoggerDownstream(),
+        new TradeExecutionFailedLoggerDownstream());
     this.stockMarketRunner = new StockMarketRunnerImpl();
   }
 

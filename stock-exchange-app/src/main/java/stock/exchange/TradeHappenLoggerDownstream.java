@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import stock.exchange.domain.TradeRecord;
 
-public class TradeHappenLoggerDownstream implements NonblockingDownstream<TradeRecord> {
+public class TradeHappenLoggerDownstream implements NonblockingNonFailingDownstream<TradeRecord> {
 
   private final Logger logger = LoggerFactory.getLogger("Trades");
 

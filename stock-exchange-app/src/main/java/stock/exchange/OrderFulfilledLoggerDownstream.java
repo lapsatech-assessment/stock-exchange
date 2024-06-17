@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import stock.exchange.domain.OrderRecord;
 
-public class OrderFulfilledLoggerDownstream implements NonblockingDownstream<OrderRecord> {
+public class OrderFulfilledLoggerDownstream implements NonblockingNonFailingDownstream<OrderRecord> {
 
   private final Logger logger = LoggerFactory.getLogger("Orders");
 

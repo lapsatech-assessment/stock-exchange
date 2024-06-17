@@ -1,6 +1,7 @@
 package stock.exchange.book;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,12 +10,16 @@ import org.slf4j.LoggerFactory;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import stock.exchange.NonblockingDownstream;
+import stock.exchange.NonblockingNonFailingBiDownstream;
+import stock.exchange.NonblockingNonFailingDownstream;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.OrderType;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TradeRecord;
 import stock.exchange.domain.TraderRecord;
+import stock.exchange.instrument.OrderMatchRecord;
+import stock.exchange.matcher.StockMatcher;
+import stock.exchange.trade.TradeExecutionException;
 import stock.exchange.trade.TradeManager;
 
 public class OrderBookImpl implements OrderBook {
@@ -28,8 +33,10 @@ public class OrderBookImpl implements OrderBook {
 
   private final Long2ObjectMap<OrderRecord> orders = new Long2ObjectArrayMap<>();
 
-  private final NonblockingDownstream<OrderRecord> filledOrderDownstream;
-  private final NonblockingDownstream<TradeRecord> tradeDownstream;
+  private final NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream;
+  private final NonblockingNonFailingDownstream<TradeRecord> tradeDownstream;
+
+  private final NonblockingNonFailingBiDownstream<OrderMatchRecord, Throwable> tradeExecutionRejected;
 
   private final Object sync = new Object();
 
@@ -37,14 +44,16 @@ public class OrderBookImpl implements OrderBook {
       SecurityRecord instrument,
       StockMatcher stockMatcher,
       TradeManager tradeManager,
-      NonblockingDownstream<OrderRecord> filledOrderDownstream,
-      NonblockingDownstream<TradeRecord> tradeDownstream) {
+      NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream,
+      NonblockingNonFailingDownstream<TradeRecord> tradeDownstream,
+      NonblockingNonFailingBiDownstream<OrderMatchRecord, Throwable> tradeValidationRejected) {
     this.logger = LoggerFactory.getLogger("BOOK." + instrument.symbol());
     this.instrument = instrument;
     this.stockMatcher = stockMatcher;
     this.tradeManager = tradeManager;
     this.filledOrderDownstream = filledOrderDownstream;
     this.tradeDownstream = tradeDownstream;
+    this.tradeExecutionRejected = tradeValidationRejected;
   }
 
   @Override
@@ -53,14 +62,25 @@ public class OrderBookImpl implements OrderBook {
       stockMatcher.match(
           instrument.marketPrice(),
           (long buyersOrderId, long sellersOrderId, int quantity, double buyerPrice, double sellerPrice) -> {
-            tradeDownstream.accept(
-                tradeManager.createTrade(
+            try {
+              TradeRecord trade;
+              try {
+                trade = tradeManager.executeTrade(
                     instrument,
                     orders.get(buyersOrderId),
                     orders.get(sellersOrderId),
                     quantity,
                     buyerPrice,
-                    sellerPrice));
+                    sellerPrice);
+              } catch (TradeExecutionException e) {
+                tradeExecutionRejected
+                    .accept(new OrderMatchRecord(buyersOrderId, sellersOrderId, quantity, buyerPrice, sellerPrice), e);
+                return;
+              }
+              tradeDownstream.accept(trade);
+            } catch (RuntimeException e) {
+              logger.error("Failed to process order match event", e);
+            }
           },
           (orderId, quantityLeft) -> {
             // update book for partially filled order values
@@ -134,9 +154,9 @@ public class OrderBookImpl implements OrderBook {
   @Override
   public Iterable<OrderRecord> getOrders() {
     synchronized (sync) {
-      List<OrderRecord> list = new ArrayList<>(orders.size());
-      list.addAll(orders.values());
-      return list;
+      List<OrderRecord> records = new ArrayList<>(orders.size());
+      records.addAll(orders.values());
+      return Collections.unmodifiableList(records);
     }
   }
 }

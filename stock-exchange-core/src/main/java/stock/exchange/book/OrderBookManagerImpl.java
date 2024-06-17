@@ -6,11 +6,14 @@ import java.util.function.Supplier;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import stock.exchange.NonblockingDownstream;
+import stock.exchange.NonblockingNonFailingBiDownstream;
+import stock.exchange.NonblockingNonFailingDownstream;
 import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TradeRecord;
+import stock.exchange.instrument.OrderMatchRecord;
+import stock.exchange.matcher.StockMatcher;
 import stock.exchange.trade.TradeManager;
 
 public class OrderBookManagerImpl implements OrderBookManager {
@@ -19,17 +22,20 @@ public class OrderBookManagerImpl implements OrderBookManager {
 
   private final Int2ObjectMap<OrderBook> books;
   private final Supplier<StockMatcher> stockMatcherFactory;
-  private final NonblockingDownstream<OrderRecord> filledOrderDownstream;
-  private final NonblockingDownstream<TradeRecord> tradeDownstream;
+  private final NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream;
+  private final NonblockingNonFailingDownstream<TradeRecord> tradeDownstream;
+  private final NonblockingNonFailingBiDownstream<OrderMatchRecord, Throwable> tradeExecutionRejected;
 
   public OrderBookManagerImpl(
       Supplier<StockMatcher> stockMatcherFactory,
-      NonblockingDownstream<OrderRecord> filledOrderDownstream,
-      NonblockingDownstream<TradeRecord> tradeDownstream) {
+      NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream,
+      NonblockingNonFailingDownstream<TradeRecord> tradeDownstream,
+      NonblockingNonFailingBiDownstream<OrderMatchRecord, Throwable> tradeExecutionRejected) {
     this.books = new Int2ObjectOpenHashMap<>();
     this.stockMatcherFactory = stockMatcherFactory;
     this.filledOrderDownstream = filledOrderDownstream;
     this.tradeDownstream = tradeDownstream;
+    this.tradeExecutionRejected = tradeExecutionRejected;
     ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
     this.reader = rw.readLock();
     this.writer = rw.writeLock();
@@ -47,7 +53,8 @@ public class OrderBookManagerImpl implements OrderBookManager {
           stockMatcherFactory.get(),
           tradeManagerWrites,
           filledOrderDownstream,
-          tradeDownstream);
+          tradeDownstream,
+          tradeExecutionRejected);
       books.put(instrument.id(), book);
       return book;
     } finally {

@@ -1,5 +1,8 @@
-package stock.exchange.book;
+package stock.exchange.matcher;
 
+import stock.exchange.book.DuplicateOrderException;
+import stock.exchange.book.NoSuchOrderException;
+import stock.exchange.book.OrderPartiallyFilledException;
 import stock.exchange.domain.DoubleReference;
 
 /**
@@ -18,6 +21,9 @@ public interface StockMatcher {
   @FunctionalInterface
   interface OrderMatchedEventListener {
 
+    /**
+     * The method should be exceptions free
+     */
     void onOrderMatched(long buyersOrderId, long sellersOrderId, int quantity, double buyerPrice, double sellerPrice);
   }
 

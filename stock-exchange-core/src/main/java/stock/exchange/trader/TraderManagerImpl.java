@@ -1,5 +1,8 @@
 package stock.exchange.trader;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -47,4 +50,15 @@ public class TraderManagerImpl implements TraderManager {
     }
   }
 
+  @Override
+  public Iterable<TraderRecord> getTraders() {
+    reader.lock();
+    try {
+      List<TraderRecord> records = new ArrayList<>(traders.size());
+      records.addAll(traders.values());
+      return Collections.unmodifiableList(records);
+    } finally {
+      reader.unlock();
+    }
+  }
 }

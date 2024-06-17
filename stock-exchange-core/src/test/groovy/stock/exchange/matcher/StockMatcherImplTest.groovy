@@ -3,11 +3,10 @@ package stock.exchange.matcher
 import spock.lang.Specification
 import spock.lang.Subject
 import stock.exchange.book.OrderPartiallyFilledException
-import stock.exchange.book.StockMatcherImpl
-import stock.exchange.book.StockMatcher.OrderFulfilledEventListener
-import stock.exchange.book.StockMatcher.OrderMatchedEventListener
-import stock.exchange.book.StockMatcher.OrderPartiallyFilledEventListener
 import stock.exchange.domain.DoubleReference
+import stock.exchange.matcher.StockMatcher.OrderFulfilledEventListener
+import stock.exchange.matcher.StockMatcher.OrderMatchedEventListener
+import stock.exchange.matcher.StockMatcher.OrderPartiallyFilledEventListener
 
 class StockMatcherImplTest extends Specification {
 

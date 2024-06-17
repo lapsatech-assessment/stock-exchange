@@ -1,6 +1,9 @@
 package stock.exchange.instrument;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -15,52 +18,8 @@ import stock.exchange.domain.SecurityRecord;
 
 public class MarketDataWorld implements MarketDataReads, MarketDataWrites, InstrumentManager {
 
-  private static class DynamicAverage implements DoubleReference {
-
-    private final DoubleReference[] components;
-
-    private DynamicAverage(DoubleReference[] components) {
-      this.components = components;
-    }
-
-    @Override
-    public double getAsDouble() {
-      double d = 0d;
-      for (int i = 0; i < components.length; i++) {
-        d += components[i].getAsDouble();
-      }
-      return d / components.length;
-    }
-
-    @Override
-    public String toString() {
-      return String.valueOf(getAsDouble());
-    }
-
-  }
-
-  private static class Mutable implements DoubleReference {
-
-    private volatile double value;
-
-    private Mutable(double value) {
-      this.value = value;
-    }
-
-    @Override
-    public double getAsDouble() {
-      return value;
-    }
-
-    @Override
-    public String toString() {
-      return String.valueOf(value);
-    }
-  }
-
   private final Lock reader, writer;
   private final Int2ObjectMap<DoubleReference> marketPrices;
-
   private final Int2ObjectMap<InstrumentRecord> instrumentsById;
   private final Object2ObjectMap<String, InstrumentRecord> instrumentsByName;
 
@@ -77,7 +36,9 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
   public Iterable<InstrumentRecord> getInstruments() {
     reader.lock();
     try {
-      return instrumentsById.values();
+      List<InstrumentRecord> records = new ArrayList<>(instrumentsById.size());
+      records.addAll(instrumentsById.values());
+      return Collections.unmodifiableList(records);
     } finally {
       reader.unlock();
     }
@@ -139,10 +100,12 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
         throw new DuplicateInstrumentException();
       }
       Mutable marketPrice = new Mutable(initialPrice);
-      marketPrices.put(instrumentId, marketPrice);
       SecurityRecord rec = new SecurityRecord(instrumentId, symbol, marketPrice);
+
+      marketPrices.put(instrumentId, marketPrice);
       instrumentsById.put(instrumentId, rec);
       instrumentsByName.put(symbol, rec);
+
       return rec;
     } finally {
       writer.unlock();
@@ -150,33 +113,38 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
   }
 
   @Override
-  public synchronized CompositeRecord createComposite(int instrumentId, String symbol, String[] componentSymbols) {
+  public CompositeRecord createComposite(int compositeId, String symbol, String[] componentSymbols) {
     writer.lock();
     try {
-      if (instrumentsById.containsKey(instrumentId)) {
+      if (instrumentsById.containsKey(compositeId)) {
         throw new DuplicateInstrumentException();
       }
       if (instrumentsByName.containsKey(symbol)) {
         throw new DuplicateInstrumentException();
       }
 
-      DoubleReference[] componentsPrices = new DoubleReference[componentSymbols.length];
-      SecurityRecord[] componentsRecords = new SecurityRecord[componentSymbols.length];
+      SecurityRecord[] securities = new SecurityRecord[componentSymbols.length];
+      DoubleReference[] securityPrices = new DoubleReference[componentSymbols.length];
       for (int i = 0; i < componentSymbols.length; i++) {
         if (instrumentsByName.get(componentSymbols[i]) instanceof SecurityRecord sr) {
-          componentsRecords[i] = sr;
-          componentsPrices[i] = componentsRecords[i].marketPrice();
+          securities[i] = sr;
+          securityPrices[i] = sr.marketPrice();
         } else {
           throw new NoSuchSecurityException(componentSymbols[i]);
         }
       }
-      DoubleReference avgComponentsPrice = new DynamicAverage(componentsPrices);
 
-      marketPrices.put(instrumentId, avgComponentsPrice);
-      CompositeRecord rec = new CompositeRecord(instrumentId, symbol, avgComponentsPrice,
-          Arrays.asList(componentsRecords));
-      instrumentsById.put(instrumentId, rec);
+      DynamicAverage marketPrice = new DynamicAverage(securityPrices);
+      CompositeRecord rec = new CompositeRecord(
+          compositeId,
+          symbol,
+          marketPrice,
+          Collections.unmodifiableList(Arrays.asList(securities)));
+
+      marketPrices.put(compositeId, marketPrice);
+      instrumentsById.put(compositeId, rec);
       instrumentsByName.put(symbol, rec);
+
       return rec;
     } finally {
       writer.unlock();
@@ -189,6 +157,49 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
       mdr.value = price;
     } else {
       throw new NoSuchSecurityException(securityId);
+    }
+  }
+
+  private static class DynamicAverage implements DoubleReference {
+
+    private final DoubleReference[] components;
+
+    private DynamicAverage(DoubleReference[] components) {
+      this.components = components;
+    }
+
+    @Override
+    public double getAsDouble() {
+      double d = 0d;
+      for (int i = 0; i < components.length; i++) {
+        d += components[i].getAsDouble();
+      }
+      return d / components.length;
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(getAsDouble());
+    }
+
+  }
+
+  private static class Mutable implements DoubleReference {
+
+    private volatile double value;
+
+    private Mutable(double value) {
+      this.value = value;
+    }
+
+    @Override
+    public double getAsDouble() {
+      return value;
+    }
+
+    @Override
+    public String toString() {
+      return String.valueOf(value);
     }
   }
 }
