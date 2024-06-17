@@ -33,7 +33,7 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
   }
 
   @Override
-  public Iterable<InstrumentRecord> getInstruments() {
+  public Iterable<InstrumentRecord> getAllInstruments() {
     reader.lock();
     try {
       List<InstrumentRecord> records = new ArrayList<>(instrumentsById.size());

@@ -51,7 +51,7 @@ public class TraderManagerImpl implements TraderManager {
   }
 
   @Override
-  public Iterable<TraderRecord> getTraders() {
+  public Iterable<TraderRecord> getAllTraders() {
     reader.lock();
     try {
       List<TraderRecord> records = new ArrayList<>(traders.size());

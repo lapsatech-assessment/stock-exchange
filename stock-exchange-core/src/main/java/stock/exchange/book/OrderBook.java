@@ -18,7 +18,7 @@ public interface OrderBook {
 
   OrderRecord removeOrder(long orderId);
 
-  Iterable<OrderRecord> getOrders();
+  Iterable<OrderRecord> getActiveOrders();
 
   void tick();
 

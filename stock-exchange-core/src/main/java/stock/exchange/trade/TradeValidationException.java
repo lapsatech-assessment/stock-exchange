@@ -1,7 +1,7 @@
 package stock.exchange.trade;
 
 @SuppressWarnings("serial")
-public class TradeValidationException extends TradeExecutionException {
+public class TradeValidationException extends TradeGenerationException {
 
   public TradeValidationException() {
   }

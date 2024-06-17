@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import stock.exchange.domain.TradeRecord;
+import stock.exchange.integration.NonblockingNonFailingJunkDownstream;
 
 public class RejectedMarketDataLoggerDownstream
     implements NonblockingNonFailingJunkDownstream<TradeRecord> {

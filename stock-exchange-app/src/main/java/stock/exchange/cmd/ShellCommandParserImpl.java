@@ -1,6 +1,6 @@
 package stock.exchange.cmd;
 
-import stock.exchange.StockExchangeWorld;
+import stock.exchange.StockExchangeFacade;
 import stock.exchange.common.CommonException;
 
 public class ShellCommandParserImpl implements ShellCommandParser {
@@ -26,10 +26,10 @@ public class ShellCommandParserImpl implements ShellCommandParser {
   private static final String BYE = "BYE";
   private static final String QUIT = "QUIT";
 
-  private final StockExchangeWorld stockExchangeWorld;
+  private final StockExchangeFacade stockExchangeFacade;
 
-  public ShellCommandParserImpl(StockExchangeWorld stockExchangeWorld) {
-    this.stockExchangeWorld = stockExchangeWorld;
+  public ShellCommandParserImpl(StockExchangeFacade stockExchangeFacade) {
+    this.stockExchangeFacade = stockExchangeFacade;
   }
 
   @Override
@@ -53,7 +53,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
                   throw new InvalidInput(CREATE + " " + TRADER + " <id> <traderName>");
                 }
-                var trader = stockExchangeWorld.createTrader(traderId, name);
+                var trader = stockExchangeFacade.createTrader(traderId, name);
                 return CREATE + ": " + trader;
               }
 
@@ -68,7 +68,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
                   throw new InvalidInput(CREATE + " " + SECURITY + " <id> <symbol> <initialPrice>");
                 }
-                var security = stockExchangeWorld.createSecurity(securityId, symbol, initialPrice);
+                var security = stockExchangeFacade.createSecurity(securityId, symbol, initialPrice);
                 return CREATE + ": " + security;
               }
 
@@ -87,7 +87,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
                   throw new InvalidInput(CREATE + " " + COMPOSITE + " <id> <symbol> <securitySymbol1...> <securitySymbolN>");
                 }
-                var instrument = stockExchangeWorld.createComposite(instrumentId, symbol, compositeSymbols);
+                var instrument = stockExchangeFacade.createComposite(instrumentId, symbol, compositeSymbols);
                 return CREATE + ": " + instrument;
               }
 
@@ -109,7 +109,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
                   throw new InvalidInput(DESCRIBE + " " + INSTRUMENT + " symbol");
                 }
-                var instrument = stockExchangeWorld.getInstrument(symbol);
+                var instrument = stockExchangeFacade.getInstrument(symbol);
                 return DESCRIBE + ": " + instrument;
               }
 
@@ -120,7 +120,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
                   throw new InvalidInput(DESCRIBE + " " + TRADER + " <traderId>");
                 }
-                var instrument = stockExchangeWorld.getTrader(traderId);
+                var instrument = stockExchangeFacade.getTrader(traderId);
                 return DESCRIBE + ": " + instrument;
               }
             }
@@ -140,7 +140,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
                   throw new InvalidInput(LIST + " " + ORDERS + " <securitySymbol>");
                 }
-                var orders = stockExchangeWorld.listOrders(symbol);
+                var orders = stockExchangeFacade.listOrders(symbol);
                 StringBuilder sb = new StringBuilder();
                 sb.append(LIST + ": ");
                 boolean empty = true;
@@ -156,7 +156,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
               }
 
               case INSTRUMENTS: {
-                var instruments = stockExchangeWorld.listInstruments();
+                var instruments = stockExchangeFacade.listInstruments();
                 StringBuilder sb = new StringBuilder();
                 sb.append(LIST + ": ");
                 boolean empty = true;
@@ -188,7 +188,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
           } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
             throw new InvalidInput(SELL + " <traderId> <symbol> <quantity>");
           }
-          var order = stockExchangeWorld.sell(traderId, symbol, quantity);
+          var order = stockExchangeFacade.sell(traderId, symbol, quantity);
           return SELL + ": " + order;
         }
 
@@ -201,7 +201,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
           } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
             throw new InvalidInput(CANCEL + " <symbol> <orderId>");
           }
-          var order = stockExchangeWorld.cancelOrder(symbol, orderId);
+          var order = stockExchangeFacade.cancelOrder(symbol, orderId);
           return CANCEL + ": " + order;
         }
 
@@ -216,7 +216,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
           } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
             throw new InvalidInput(BUY + " <traderId> <symbol> <quantity>");
           }
-          var order = stockExchangeWorld.buy(traderId, symbol, quantity);
+          var order = stockExchangeFacade.buy(traderId, symbol, quantity);
           return BUY + ": " + order;
         }
 
@@ -233,7 +233,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
           } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
             throw new InvalidInput(BID + " <traderId> <symbol> <quantity> <price>");
           }
-          var order = stockExchangeWorld.bid(traderId, symbol, quantity, price);
+          var order = stockExchangeFacade.bid(traderId, symbol, quantity, price);
           return BID + ": " + order;
         }
 
@@ -250,7 +250,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
           } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
             throw new InvalidInput(ASK + " <traderId> <symbol> <quantity> <price>");
           }
-          var order = stockExchangeWorld.ask(traderId, symbol, quantity, price);
+          var order = stockExchangeFacade.ask(traderId, symbol, quantity, price);
           return ASK + ": " + order;
         }
 
