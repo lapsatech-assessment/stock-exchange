@@ -1,4 +1,4 @@
-package stock.exchange.book;
+package stock.exchange.matcher;
 
 import static java.util.Comparator.comparingDouble;
 
@@ -11,6 +11,9 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
 import it.unimi.dsi.fastutil.objects.ObjectHeapPriorityQueue;
+import stock.exchange.book.DuplicateOrderException;
+import stock.exchange.book.NoSuchOrderException;
+import stock.exchange.book.OrderPartiallyFilledException;
 import stock.exchange.domain.DoubleReference;
 
 /**

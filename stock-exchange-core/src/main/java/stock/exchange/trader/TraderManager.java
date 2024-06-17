@@ -7,4 +7,6 @@ public interface TraderManager {
   TraderRecord createTrader(int id, String name);
 
   TraderRecord findTraderById(int id);
+
+  Iterable<TraderRecord> getTraders();
 }

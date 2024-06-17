@@ -6,7 +6,7 @@ import stock.exchange.domain.TradeRecord;
 
 public interface TradeManager {
 
-  TradeRecord createTrade(
+  TradeRecord executeTrade(
       SecurityRecord instrument,
       OrderRecord buyOrder,
       OrderRecord sellOrder,

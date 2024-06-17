@@ -1,5 +1,8 @@
-package stock.exchange.book;
+package stock.exchange.matcher;
 
+import stock.exchange.book.DuplicateOrderException;
+import stock.exchange.book.NoSuchOrderException;
+import stock.exchange.book.OrderPartiallyFilledException;
 import stock.exchange.domain.DoubleReference;
 
 /**
@@ -14,6 +17,27 @@ import stock.exchange.domain.DoubleReference;
  * execution order as well as it should guarantee it's internal state
  */
 public interface StockMatcher {
+
+  @FunctionalInterface
+  interface OrderMatchedEventListener {
+
+    /**
+     * The method should be exceptions free
+     */
+    void onOrderMatched(long buyersOrderId, long sellersOrderId, int quantity, double buyerPrice, double sellerPrice);
+  }
+
+  @FunctionalInterface
+  interface OrderPartiallyFilledEventListener {
+
+    void onOrderPartialyFilled(long orderId, int quantityLeft);
+  }
+
+  @FunctionalInterface
+  public interface OrderFulfilledEventListener {
+
+    void onOrderFulfilled(long orderId);
+  }
 
   /**
    * The method adds 'Buy' Limit Order to the queue
