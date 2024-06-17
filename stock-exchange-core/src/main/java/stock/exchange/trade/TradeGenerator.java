@@ -2,11 +2,10 @@ package stock.exchange.trade;
 
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
-import stock.exchange.domain.TradeRecord;
 
-public interface TradeManager {
+public interface TradeGenerator {
 
-  TradeRecord executeTrade(
+  void generateTrade(
       SecurityRecord instrument,
       OrderRecord buyOrder,
       OrderRecord sellOrder,

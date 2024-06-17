@@ -23,7 +23,7 @@ class MarketDataWorldTest extends Specification {
     secur1.marketPrice.asDouble == 10.0d
 
     expect:
-    subject.getInstruments().collect() == [secur1]
+    subject.getAllInstruments().collect() == [secur1]
   }
 
   def 'create secuiry : failed duplicate'() {
@@ -43,7 +43,7 @@ class MarketDataWorldTest extends Specification {
     thrown(DuplicateInstrumentException)
 
     expect:
-    subject.getInstruments().collect() == [secur1]
+    subject.getAllInstruments().collect() == [secur1]
   }
 
   def 'create composite : succesful'() {
@@ -61,7 +61,7 @@ class MarketDataWorldTest extends Specification {
     comp1.componenents.collect() == [secur1, secur2]
 
     expect:
-    subject.getInstruments().collect().sort({it.id}) == [secur1, secur2, comp1]
+    subject.getAllInstruments().collect().sort({it.id}) == [secur1, secur2, comp1]
   }
 
   def 'creat composite : failed duplicate'() {
@@ -82,7 +82,7 @@ class MarketDataWorldTest extends Specification {
     thrown(DuplicateInstrumentException)
 
     expect:
-    subject.getInstruments().collect().sort({it.id}) == [secur1, secur2]
+    subject.getAllInstruments().collect().sort({it.id}) == [secur1, secur2]
   }
 
   def 'creat composite : component not found'() {
@@ -97,7 +97,7 @@ class MarketDataWorldTest extends Specification {
     thrown(NoSuchSecurityException)
 
     expect:
-    subject.getInstruments().collect().sort({it.id}) == [secur1, secur2]
+    subject.getAllInstruments().collect().sort({it.id}) == [secur1, secur2]
   }
 
   def 'get market price : returns correct values'() {

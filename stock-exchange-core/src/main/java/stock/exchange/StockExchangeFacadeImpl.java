@@ -12,14 +12,14 @@ import stock.exchange.domain.TraderRecord;
 import stock.exchange.instrument.InstrumentManager;
 import stock.exchange.trader.TraderManager;
 
-public class StockExchangeWorldImpl implements StockExchangeWorld {
+public class StockExchangeFacadeImpl implements StockExchangeFacade {
 
   private final InstrumentManager instrumentManager;
   private final TraderManager traderManager;
   private final StockMarketRunner stockMarketRunner;
   private final OrderBookManager orderBookManager;
 
-  public StockExchangeWorldImpl(
+  public StockExchangeFacadeImpl(
       InstrumentManager instrumentManager,
       TraderManager traderManager,
       StockMarketRunner stockMarketRunner,
@@ -50,7 +50,7 @@ public class StockExchangeWorldImpl implements StockExchangeWorld {
 
   @Override
   public Iterable<InstrumentRecord> listInstruments() {
-    return instrumentManager.getInstruments();
+    return instrumentManager.getAllInstruments();
   }
 
   @Override
@@ -67,7 +67,7 @@ public class StockExchangeWorldImpl implements StockExchangeWorld {
   public Iterable<OrderRecord> listOrders(String symbol) {
     var instrument = instrumentManager.findInstrumentBySymbol(symbol);
     var book = orderBookManager.findBookByInstrument(instrument);
-    return book.getOrders();
+    return book.getActiveOrders();
   }
 
   @Override
@@ -107,10 +107,5 @@ public class StockExchangeWorldImpl implements StockExchangeWorld {
     var instrument = instrumentManager.findInstrumentBySymbol(symbol);
     var book = orderBookManager.findBookByInstrument(instrument);
     return book.addAsk(trader, quantity, price);
-  }
-
-  @Override
-  public void shutdown() {
-    stockMarketRunner.shutdown();
   }
 }

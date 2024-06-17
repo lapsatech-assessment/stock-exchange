@@ -6,7 +6,7 @@ import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TraderRecord;
 
-public interface StockExchangeWorld extends AutoCloseable {
+public interface StockExchangeFacade {
 
   SecurityRecord createSecurity(int instrumentId, String symbol, double initialPrice);
 
@@ -31,11 +31,4 @@ public interface StockExchangeWorld extends AutoCloseable {
   OrderRecord cancelOrder(String symbol, long orderId);
 
   Iterable<InstrumentRecord> listInstruments();
-
-  void shutdown();
-
-  @Override
-  default void close() {
-    shutdown();
-  }
 }

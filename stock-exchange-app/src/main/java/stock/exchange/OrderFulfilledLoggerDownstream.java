@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import stock.exchange.domain.OrderRecord;
+import stock.exchange.integration.NonblockingNonFailingDownstream;
 
 public class OrderFulfilledLoggerDownstream implements NonblockingNonFailingDownstream<OrderRecord> {
 
