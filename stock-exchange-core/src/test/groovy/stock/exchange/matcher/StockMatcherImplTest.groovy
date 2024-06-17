@@ -18,6 +18,153 @@ class StockMatcherImplTest extends Specification {
   @Subject
   def subject = new StockMatcherImpl()
 
+  def 'market orders only : two orders quantity1 = quantity2 are matched and fulfilled'() {
+
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 100)
+
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 100, 666.00d, 666.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100001)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200001)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
+  def 'market orders only : two orders quantity1 != quantity2 are matched and partial filled'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 70)
+
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 70, 666.00d, 666.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200001)
+    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(100001, 30)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
+  def 'market orders only : three orders are matched and fully filleеd in one tick'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 70)
+    subject.addOrderSell(200002, 30)
+    
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 70, 666.00d, 666.00d)
+    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(100001, 30)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200001)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200002, 30, 666.00d, 666.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100001)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200002)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
+  def 'market orders only : four orders are matched and fully filleеd in one ticks'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d, 777.00d, 888.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 70)
+    subject.addOrderSell(200002, 40)
+    subject.addOrderBuy(100002, 10)
+
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 70, 666.00d, 666.00d)
+    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(100001, 30)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200001)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200002, 30, 666.00d, 666.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100001)
+    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(200002, 10)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100002, 200002, 10, 666.00d, 666.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100002)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200002)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
+  def 'market orders only : four orders are matched and fully filleеd in three ticks'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d, 777.00d, 888.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 70)
+    
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 70, 666.00d, 666.00d)
+    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(100001, 30)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200001)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+
+    when:
+    subject.addOrderSell(200002, 40)
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200002, 30, 777.00d, 777.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100001)
+    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(200002, 10)
+    
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+
+    when:
+    subject.addOrderBuy(100002, 10)
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    1 * orderMatchListener.onOrderMatched(100002, 200002, 10, 888.00d, 888.00d)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100002)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200002)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
   def 'limit orders only : two orders with bid = ask and quantity1 = quantity2 are matched and fulfilled'() {
     given:
     subject.addOrderBid(100001, 20.00, 100)
@@ -274,59 +421,74 @@ class StockMatcherImplTest extends Specification {
     0 * orderPartiallyFilledEventListener._
   }
 
-  def 'market orders only : check general matching'() {
+  def 'mixed orders : limit order with bid price > market price is matched and fulfiled with market sell order'() {
     given:
-    marketPriceRef.getAsDouble() >>> [666.00d, 777.00d, 888.00d]
-
-    subject.addOrderBuy(100001, 100) // 1st match
-    subject.addOrderBuy(100002, 50) // 2nd match
-
-    subject.addOrderBuy(100003, 10) // 3rd, 4th match
-    subject.addOrderBuy(100004, 5) // 5th match
-
-    subject.addOrderSell(200001, 150) // 1st, 2nd match
-    subject.addOrderSell(200002, 7) // 3rd match
+    marketPriceRef.getAsDouble() >>> [20.00d]
+    subject.addOrderBid(100001, 30.00, 100)
+    subject.addOrderSell(200001, 100)
 
     when:
     subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
-    then: '1st'
-    1 * orderMatchListener.onOrderMatched(100001, 200001, 100, 666.00d, 666.00d)
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 100, 30.00, 20.00)
     1 * orderFulfilledEventListener.onOrderFulfilled(100001)
-    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(200001, 50)
-
-    then: '2nd'
-    1 * orderMatchListener.onOrderMatched(100002, 200001, 50, 666.00d, 666.00d)
-    1 * orderFulfilledEventListener.onOrderFulfilled(100002)
     1 * orderFulfilledEventListener.onOrderFulfilled(200001)
 
-    then: '3rd'
-    1 * orderMatchListener.onOrderMatched(100003, 200002, 7, 666.00d, 666.00d)
-    1 * orderFulfilledEventListener.onOrderFulfilled(200002)
-    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(100003, 3)
-
-    then:
+    then: 'none'
     0 * orderMatchListener._
     0 * orderFulfilledEventListener._
     0 * orderPartiallyFilledEventListener._
+  }
 
+  def 'mixed orders : limit order with ask price < market price is matched and fulfiled with market buy order'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [20.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderAsk(200001, 10.00, 100)
+    
     when:
-    subject.addOrderSell(200003, 8) // 4th, 5th match
     subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
-    then: '4th'
-    1 * orderMatchListener.onOrderMatched(100003, 200003, 3, 777.00d, 777.00d)
-    1 * orderFulfilledEventListener.onOrderFulfilled(100003)
-    1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(200003, 5)
+    then:
+    1 * orderMatchListener.onOrderMatched(100001, 200001, 100, 20.00, 10.00)
+    1 * orderFulfilledEventListener.onOrderFulfilled(100001)
+    1 * orderFulfilledEventListener.onOrderFulfilled(200001)
 
-    then: '5th'
-    1 * orderMatchListener.onOrderMatched(100004, 200003, 5, 777.00d, 777.00d)
-    1 * orderFulfilledEventListener.onOrderFulfilled(100004)
-    1 * orderFulfilledEventListener.onOrderFulfilled(200003)
+    then: 'none'
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
+  def 'mixed orders : limit order with bid price < market price is not matched'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [30.00d]
+    subject.addOrderBid(100001, 20.00, 100)
+    subject.addOrderSell(200001, 100)
+
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
     then:
     0 * orderMatchListener._
     0 * orderFulfilledEventListener._
     0 * orderPartiallyFilledEventListener._
   }
+
+  def 'mixed orders : limit order with ask price > market price is not matched'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [10.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderAsk(200001, 20.00, 100)
+    
+    when:
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
 }

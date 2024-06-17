@@ -35,12 +35,11 @@ public class StockExchangeApp {
         new StockMarketRunnerImpl(),
         new OrderBookManagerImpl(
             StockMatcherImpl::new,
-            new TradeManagerImpl(),
-            marketDataWrites,
+            new TradeManagerImpl(marketDataWrites,
+                new RejectedMarketDataLoggerDownstream()),
             new OrderFulfilledLoggerDownstream(),
             new TradeHappenLoggerDownstream(),
-            new TradeExecutionFailedLoggerDownstream(),
-            new RejectedMarketDataLoggerDownstream()))) {
+            new TradeExecutionFailedLoggerDownstream()))) {
 
       ShellCommandParser shellCommandParser = new ShellCommandParserImpl(stockExchangeWorld);
 
