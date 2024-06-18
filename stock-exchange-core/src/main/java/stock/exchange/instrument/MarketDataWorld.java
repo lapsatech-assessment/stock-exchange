@@ -21,19 +21,19 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
   private final Lock reader, writer;
   private final Int2ObjectMap<DoubleReference> marketPrices;
   private final Int2ObjectMap<InstrumentRecord> instrumentsById;
-  private final Object2ObjectMap<String, InstrumentRecord> instrumentsByName;
+  private final Object2ObjectMap<String, InstrumentRecord> instrumentsBySymbol;
 
   public MarketDataWorld() {
     this.marketPrices = new Int2ObjectOpenHashMap<>();
     this.instrumentsById = new Int2ObjectOpenHashMap<>();
-    this.instrumentsByName = new Object2ObjectOpenHashMap<>();
+    this.instrumentsBySymbol = new Object2ObjectOpenHashMap<>();
     ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
     this.reader = rw.readLock();
     this.writer = rw.writeLock();
   }
 
   @Override
-  public Iterable<InstrumentRecord> getAllInstruments() {
+  public Iterable<? extends InstrumentRecord> getAllInstruments() {
     reader.lock();
     try {
       List<InstrumentRecord> records = new ArrayList<>(instrumentsById.size());
@@ -62,11 +62,11 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
   public InstrumentRecord findInstrumentBySymbol(String symbol) {
     reader.lock();
     try {
-      return instrumentsById.values()
-          .stream()
-          .filter(instr -> instr.symbol().equals(symbol))
-          .findAny()
-          .orElseThrow(NoSuchInstrumentException::new);
+      InstrumentRecord rec = instrumentsBySymbol.get(symbol);
+      if (rec == null) {
+        throw new NoSuchInstrumentException();
+      }
+      return rec;
     } finally {
       reader.unlock();
     }
@@ -86,6 +86,12 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
     }
   }
 
+  private record Security(
+      int id,
+      String symbol,
+      DoubleReference marketPrice) implements SecurityRecord {
+  }
+
   @Override
   public SecurityRecord createSecurity(
       int instrumentId,
@@ -96,15 +102,15 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
       if (instrumentsById.containsKey(instrumentId)) {
         throw new DuplicateInstrumentException();
       }
-      if (instrumentsByName.containsKey(symbol)) {
+      if (instrumentsBySymbol.containsKey(symbol)) {
         throw new DuplicateInstrumentException();
       }
       Mutable marketPrice = new Mutable(initialPrice);
-      SecurityRecord rec = new SecurityRecord(instrumentId, symbol, marketPrice);
+      SecurityRecord rec = new Security(instrumentId, symbol, marketPrice);
 
       marketPrices.put(instrumentId, marketPrice);
       instrumentsById.put(instrumentId, rec);
-      instrumentsByName.put(symbol, rec);
+      instrumentsBySymbol.put(symbol, rec);
 
       return rec;
     } finally {
@@ -112,21 +118,28 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
     }
   }
 
+  private record Composite(
+      int id,
+      String symbol,
+      DoubleReference marketPrice,
+      Iterable<SecurityRecord> componenents) implements CompositeRecord {
+  }
+
   @Override
-  public CompositeRecord createComposite(int compositeId, String symbol, String[] componentSymbols) {
+  public Composite createComposite(int compositeId, String symbol, String[] componentSymbols) {
     writer.lock();
     try {
       if (instrumentsById.containsKey(compositeId)) {
         throw new DuplicateInstrumentException();
       }
-      if (instrumentsByName.containsKey(symbol)) {
+      if (instrumentsBySymbol.containsKey(symbol)) {
         throw new DuplicateInstrumentException();
       }
 
       SecurityRecord[] securities = new SecurityRecord[componentSymbols.length];
       DoubleReference[] securityPrices = new DoubleReference[componentSymbols.length];
       for (int i = 0; i < componentSymbols.length; i++) {
-        if (instrumentsByName.get(componentSymbols[i]) instanceof SecurityRecord sr) {
+        if (instrumentsBySymbol.get(componentSymbols[i]) instanceof SecurityRecord sr) {
           securities[i] = sr;
           securityPrices[i] = sr.marketPrice();
         } else {
@@ -135,7 +148,7 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
       }
 
       DynamicAverage marketPrice = new DynamicAverage(securityPrices);
-      CompositeRecord rec = new CompositeRecord(
+      Composite rec = new Composite(
           compositeId,
           symbol,
           marketPrice,
@@ -143,7 +156,7 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
 
       marketPrices.put(compositeId, marketPrice);
       instrumentsById.put(compositeId, rec);
-      instrumentsByName.put(symbol, rec);
+      instrumentsBySymbol.put(symbol, rec);
 
       return rec;
     } finally {
@@ -153,7 +166,8 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
 
   @Override
   public void acceptLastTradePrice(int securityId, double price, int quantity) {
-    if (getMarketPriceRef(securityId) instanceof Mutable mdr) {
+    DoubleReference ref = getMarketPriceRef(securityId);
+    if (ref instanceof Mutable mdr) {
       mdr.value = price;
     } else {
       throw new NoSuchSecurityException(securityId);

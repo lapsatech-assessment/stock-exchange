@@ -1,10 +1,16 @@
 package stock.exchange.domain;
 
-public record TradeRecord(
-    long id,
-    SecurityRecord instrument,
-    TraderRecord seller,
-    TraderRecord buyer,
-    int quantity,
-    double price) {
+public interface TradeRecord {
+
+  long id();
+
+  SecurityRecord security();
+
+  OrderRecord buyingOrder();
+
+  OrderRecord sellingOrder();
+
+  double price();
+
+  int quantity();
 }

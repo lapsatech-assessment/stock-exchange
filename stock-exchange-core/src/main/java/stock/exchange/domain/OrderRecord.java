@@ -1,5 +1,15 @@
 package stock.exchange.domain;
 
-public record OrderRecord(long id, SecurityRecord instrument, OrderType type, TraderRecord trader, int quantity, double price) {
+public interface OrderRecord {
+  long id();
 
+  SecurityRecord security();
+
+  OrderType type();
+
+  TraderRecord trader();
+
+  int quantity();
+
+  double price();
 }

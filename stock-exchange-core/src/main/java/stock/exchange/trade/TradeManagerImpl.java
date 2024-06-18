@@ -8,60 +8,88 @@ import org.slf4j.LoggerFactory;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TradeRecord;
-import stock.exchange.integration.NonblockingNonFailingDownstream;
-import stock.exchange.integration.NonblockingNonFailingJunkDownstream;
+import stock.exchange.integration.Downstream;
+import stock.exchange.integration.RejectedDownstream;
 
 public class TradeManagerImpl implements TradeGenerator {
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
-  private final NonblockingNonFailingJunkDownstream<TradeRecord> tradeRejectedDownstream;
-  private final NonblockingNonFailingDownstream<TradeRecord> tradeDownstream;
+  private final Downstream<TradeRecord> tradeDownstream;
+  private final RejectedDownstream<TradeRecord> tradeDownstreamRejected;
 
   public TradeManagerImpl(
-      NonblockingNonFailingDownstream<TradeRecord> tradeDownstream,
-      NonblockingNonFailingJunkDownstream<TradeRecord> tradeRejectedDownstream) {
+      Downstream<TradeRecord> tradeDownstream,
+      RejectedDownstream<TradeRecord> tradeDownstreamRejected) {
     this.tradeDownstream = tradeDownstream;
-    this.tradeRejectedDownstream = tradeRejectedDownstream;
+    this.tradeDownstreamRejected = tradeDownstreamRejected;
+  }
+
+  private record Trade(
+      long id,
+      SecurityRecord security,
+      OrderRecord buyingOrder,
+      OrderRecord sellingOrder,
+      double price,
+      int quantity) implements TradeRecord {
   }
 
   @Override
   public void generateTrade(
-      SecurityRecord instrument,
-      OrderRecord buyOrder,
-      OrderRecord sellOrder,
-      int quantity,
-      double buyerPrice,
-      double sellerPrice) {
-    if (buyerPrice <= 0) {
-      throw new TradeInvalidPriceValidationException(buyerPrice);
+      SecurityRecord security,
+      OrderRecord buyingOrder,
+      double buyingPrice,
+      OrderRecord sellingOrder,
+      double sellingPrice,
+      int quantity) {
+
+    if (buyingPrice <= 0) {
+      throw new TradeInvalidPriceException(buyingPrice);
     }
-    if (sellerPrice <= 0) {
-      throw new TradeInvalidPriceValidationException(sellerPrice);
+
+    if (buyingPrice > buyingOrder.price()) {
+      throw new TradeAndOrderPriceMismatchException(buyingPrice, "higher", buyingOrder.price());
     }
-    if (buyerPrice < sellerPrice) {
-      throw new TradePriceMistmachValidationException(buyerPrice, sellerPrice);
+
+    if (sellingPrice <= 0) {
+      throw new TradeInvalidPriceException(sellingPrice);
     }
-    double tradePrice = (buyerPrice + sellerPrice) / 2; // avg
+
+    if (sellingPrice < sellingOrder.price()) {
+      throw new TradeAndOrderPriceMismatchException(sellingPrice, "lower", sellingOrder.price());
+    }
+
+    if (buyingPrice < sellingPrice) {
+      throw new TradePriceMistmachValidationException(buyingPrice, sellingPrice);
+    }
+
+    if (quantity > buyingOrder.quantity()) {
+      throw new TradeAndOrderQuantityMismatchException(quantity, "greater", buyingOrder.quantity());
+    }
+
+    if (quantity > sellingOrder.quantity()) {
+      throw new TradeAndOrderQuantityMismatchException(quantity, "greater", sellingOrder.quantity());
+    }
+
+    double tradePrice = (buyingPrice + sellingPrice) / 2; // avg
     long tradeId = Math.abs(UUID.randomUUID().getMostSignificantBits());
 
-    var trade = new TradeRecord(
+    var trade = new Trade(
         tradeId,
-        instrument,
-        buyOrder.trader(),
-        sellOrder.trader(),
-        quantity,
-        tradePrice);
+        security,
+        buyingOrder,
+        sellingOrder,
+        tradePrice,
+        quantity);
 
     try {
       tradeDownstream.accept(trade);
     } catch (RuntimeException e) {
       try {
-        tradeRejectedDownstream.accept(trade, e);
+        tradeDownstreamRejected.accept(trade, e);
       } catch (RuntimeException e1) {
         logger.error("Rejected downstream exception", e1);
-        logger.error("Original issue with downstream exception", e);
+        logger.error("Downstream exception", e);
       }
     }
   }
-
 }

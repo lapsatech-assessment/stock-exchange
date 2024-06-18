@@ -26,9 +26,9 @@ public interface StockExchangeFacade {
 
   OrderRecord ask(int traderId, String symbol, int quantity, double price);
 
-  Iterable<OrderRecord> listOrders(String symbol);
+  Iterable<? extends OrderRecord> listOrders(String symbol);
 
   OrderRecord cancelOrder(String symbol, long orderId);
 
-  Iterable<InstrumentRecord> listInstruments();
+  Iterable<? extends InstrumentRecord> listInstruments();
 }

@@ -6,25 +6,25 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Dummy implementation of the fan-out pattern.
+ * Dummy implementation of the fan-out pattern
  * 
  * Provides sufficient functionality for the test application
  */
-public class FanOutDownstream<T> implements Downstream<T> {
+public class FanOutRejectedDownstream<T> implements RejectedDownstream<T> {
 
-  private final Iterable<Downstream<T>> downstreams;
+  private final Iterable<RejectedDownstream<T>> downstreams;
 
   @SafeVarargs
-  public FanOutDownstream(Downstream<T>... downstreams) {
+  public FanOutRejectedDownstream(RejectedDownstream<T>... downstreams) {
     this.downstreams = Arrays.asList(downstreams);
   }
 
   @Override
-  public void accept(T t) {
+  public void accept(T t, Throwable cause) {
     List<RuntimeException> exceptions = new ArrayList<>();
     downstreams.forEach(d -> {
       try {
-        d.accept(t);
+        d.accept(t, cause);
       } catch (RuntimeException e) {
         exceptions.add(e);
       }

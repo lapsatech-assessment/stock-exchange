@@ -18,13 +18,17 @@ import stock.exchange.domain.DoubleReference;
  */
 public interface StockMatcher {
 
+  public static StockMatcher newInstance() {
+    return new StockMatcherImpl();
+  }
+
   @FunctionalInterface
   interface OrderMatchedEventListener {
 
     /**
      * The method should be exceptions free
      */
-    void onOrderMatched(long buyersOrderId, long sellersOrderId, int quantity, double buyerPrice, double sellerPrice);
+    void onOrderMatched(long buyingOrderId, long sellingOrderId, int quantity, double buyingPrice, double sellingPrice);
   }
 
   @FunctionalInterface

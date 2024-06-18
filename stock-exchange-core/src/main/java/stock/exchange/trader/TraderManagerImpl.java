@@ -13,7 +13,7 @@ import stock.exchange.domain.TraderRecord;
 public class TraderManagerImpl implements TraderManager {
 
   private final Lock reader, writer;
-  private final Int2ObjectMap<TraderRecord> traders;
+  private final Int2ObjectMap<Trader> traders;
 
   public TraderManagerImpl() {
     this.traders = new Int2ObjectOpenHashMap<>();
@@ -22,14 +22,19 @@ public class TraderManagerImpl implements TraderManager {
     this.writer = rw.writeLock();
   }
 
+  private record Trader(
+      int id,
+      String name) implements TraderRecord {
+  }
+
   @Override
-  public TraderRecord createTrader(int id, String name) {
+  public Trader createTrader(int id, String name) {
     writer.lock();
     try {
       if (traders.containsKey(id)) {
         throw new DuplicateTraderException();
       }
-      TraderRecord rec = new TraderRecord(id, name);
+      Trader rec = new Trader(id, name);
       traders.put(id, rec);
       return rec;
     } finally {
@@ -38,7 +43,7 @@ public class TraderManagerImpl implements TraderManager {
   }
 
   @Override
-  public TraderRecord findTraderById(int id) {
+  public Trader findTraderById(int id) {
     reader.lock();
     try {
       if (!traders.containsKey(id)) {
@@ -51,10 +56,10 @@ public class TraderManagerImpl implements TraderManager {
   }
 
   @Override
-  public Iterable<TraderRecord> getAllTraders() {
+  public Iterable<Trader> getAllTraders() {
     reader.lock();
     try {
-      List<TraderRecord> records = new ArrayList<>(traders.size());
+      List<Trader> records = new ArrayList<>(traders.size());
       records.addAll(traders.values());
       return Collections.unmodifiableList(records);
     } finally {

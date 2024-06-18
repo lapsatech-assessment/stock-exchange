@@ -7,6 +7,6 @@ public class TradePriceMistmachValidationException extends TradeValidationExcept
   }
 
   public TradePriceMistmachValidationException(double buyPrice, double sellPrice) {
-    super("Price mistmach buy: " + buyPrice + " sell " + sellPrice);
+    super("buy price " + String.valueOf(buyPrice) + " is higher than sell price " + String.valueOf(sellPrice));
   }
 }

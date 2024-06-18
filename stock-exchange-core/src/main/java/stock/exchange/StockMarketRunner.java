@@ -37,7 +37,7 @@ public class StockMarketRunner implements AutoCloseable {
     public void run() {
       try {
         logger.info("Started");
-        while (!Thread.interrupted() && !stopped) {
+        while (!stopped) {
           logger.debug("Tick");
           book.tick();
           try {

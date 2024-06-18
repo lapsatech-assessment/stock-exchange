@@ -15,11 +15,9 @@ import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.OrderType;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TraderRecord;
-import stock.exchange.integration.NonblockingNonFailingDownstream;
-import stock.exchange.integration.NonblockingNonFailingJunkDownstream;
+import stock.exchange.integration.Downstream;
+import stock.exchange.integration.RejectedDownstream;
 import stock.exchange.matcher.StockMatcher;
-import stock.exchange.trade.TradeGenerationException;
-import stock.exchange.trade.TradeGenerator;
 
 public class OrderBookImpl implements OrderBook {
 
@@ -27,28 +25,39 @@ public class OrderBookImpl implements OrderBook {
 
   private final SecurityRecord security;
 
-  private final StockMatcher stockMatcher;
-  private final TradeGenerator tradeGenerator;
+  private final StockMatcher stockMatcher = StockMatcher.newInstance();
 
-  private final Long2ObjectMap<OrderRecord> orders = new Long2ObjectOpenHashMap<>();
+  private final Long2ObjectMap<Order> orders = new Long2ObjectOpenHashMap<>();
 
-  private final NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream;
-  private final NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeGenerationRejected;
+  private final Downstream<? super OrderMatchRecord> orderMatchDownstream;
+  private final RejectedDownstream<? super OrderMatchRecord> orderMatchDownstreamRejected;
+
+  private final Downstream<? super OrderRecord> filledOrderDownstream;
+  private final RejectedDownstream<? super OrderRecord> filledOrderDownstreamRejected;
 
   private final Object sync = new Object();
 
   public OrderBookImpl(
       SecurityRecord security,
-      StockMatcher stockMatcher,
-      TradeGenerator tradeGenerator,
-      NonblockingNonFailingDownstream<OrderRecord> filledOrderDownstream,
-      NonblockingNonFailingJunkDownstream<OrderMatchRecord> tradeExecutionRejected) {
-    this.logger = LoggerFactory.getLogger("BOOK." + security.symbol());
+      Downstream<? super OrderMatchRecord> orderMatchDownstream,
+      RejectedDownstream<? super OrderMatchRecord> orderMatchDownstreamRejected,
+      Downstream<? super OrderRecord> filledOrderDownstream,
+      RejectedDownstream<? super OrderRecord> filledOrderDownstreamRejected) {
+    this.logger = LoggerFactory.getLogger("ORDER_BOOK_" + security.symbol());
     this.security = security;
-    this.stockMatcher = stockMatcher;
-    this.tradeGenerator = tradeGenerator;
+    this.orderMatchDownstream = orderMatchDownstream;
+    this.orderMatchDownstreamRejected = orderMatchDownstreamRejected;
     this.filledOrderDownstream = filledOrderDownstream;
-    this.tradeGenerationRejected = tradeExecutionRejected;
+    this.filledOrderDownstreamRejected = filledOrderDownstreamRejected;
+  }
+
+  private record OrderMatch(
+      SecurityRecord security,
+      OrderRecord buyingOrder,
+      OrderRecord sellingOrder,
+      int quantity,
+      double buyingPrice,
+      double sellingPrice) implements OrderMatchRecord {
   }
 
   @Override
@@ -56,24 +65,25 @@ public class OrderBookImpl implements OrderBook {
     synchronized (sync) {
       stockMatcher.match(
           security.marketPrice(),
-          (long buyersOrderId, long sellersOrderId, int quantity, double buyerPrice, double sellerPrice) -> {
+          (long buyingOrderId, long sellingOrderId, int quantity, double buyingPrice, double sellingPrice) -> {
+            Order buyingOrder = orders.get(buyingOrderId);
+            Order sellingOrder = orders.get(sellingOrderId);
+            OrderMatchRecord match = new OrderMatch(
+                security,
+                buyingOrder,
+                sellingOrder,
+                quantity,
+                buyingPrice,
+                sellingPrice);
             try {
-
-              try {
-                tradeGenerator.generateTrade(
-                    security,
-                    orders.get(buyersOrderId),
-                    orders.get(sellersOrderId),
-                    quantity,
-                    buyerPrice,
-                    sellerPrice);
-              } catch (TradeGenerationException e) {
-                tradeGenerationRejected
-                    .accept(new OrderMatchRecord(buyersOrderId, sellersOrderId, quantity, buyerPrice, sellerPrice), e);
-              }
-
+              orderMatchDownstream.accept(match);
             } catch (RuntimeException e) {
-              logger.error("Failed to process order match event", e);
+              try {
+                orderMatchDownstreamRejected.accept(match, e);
+              } catch (RuntimeException e1) {
+                logger.error("Rejected downstream exception", e1);
+                logger.error("Downstream exception", e);
+              }
             }
 
           },
@@ -81,7 +91,17 @@ public class OrderBookImpl implements OrderBook {
             // update book for partially filled order values if needed
           },
           orderId -> {
-            filledOrderDownstream.accept(orders.remove(orderId));
+            Order order = orders.remove(orderId);
+            try {
+              filledOrderDownstream.accept(order);
+            } catch (RuntimeException e) {
+              try {
+                filledOrderDownstreamRejected.accept(order, e);
+              } catch (RuntimeException e1) {
+                logger.error("Rejected downstream exception", e1);
+                logger.error("Downstream exception", e);
+              }
+            }
           });
     }
   }
@@ -96,52 +116,61 @@ public class OrderBookImpl implements OrderBook {
     logger.info("Persisting unfilled orders before shutdown");
   }
 
+  private record Order(
+      long id,
+      SecurityRecord security,
+      OrderType type,
+      TraderRecord trader,
+      int quantity,
+      double price) implements OrderRecord {
+  }
+
   @Override
-  public OrderRecord addBuy(TraderRecord trader, int quantity) {
+  public Order addBuy(TraderRecord trader, int quantity) {
     synchronized (sync) {
       long orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
       stockMatcher.addOrderBuy(orderId, quantity); // this checks constraints
-      OrderRecord order = new OrderRecord(orderId, security, OrderType.BUY, trader, quantity, -1d);
+      var order = new Order(orderId, security, OrderType.BUY, trader, quantity, Double.NaN);
       orders.put(order.id(), order);
       return order;
     }
   }
 
   @Override
-  public OrderRecord addSell(TraderRecord trader, int quantity) {
+  public Order addSell(TraderRecord trader, int quantity) {
     synchronized (sync) {
-      long orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
+      var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
       stockMatcher.addOrderSell(orderId, quantity); // this checks constraints
-      OrderRecord order = new OrderRecord(orderId, security, OrderType.SELL, trader, quantity, -1d);
+      var order = new Order(orderId, security, OrderType.SELL, trader, quantity, Double.NaN);
       orders.put(order.id(), order);
       return order;
     }
   }
 
   @Override
-  public OrderRecord addBid(TraderRecord trader, int quantity, double price) {
+  public Order addBid(TraderRecord trader, int quantity, double price) {
     synchronized (sync) {
-      long orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
+      var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
       stockMatcher.addOrderBid(orderId, price, quantity); // this checks constraints
-      OrderRecord order = new OrderRecord(orderId, security, OrderType.BID, trader, quantity, price);
+      var order = new Order(orderId, security, OrderType.BID, trader, quantity, price);
       orders.put(order.id(), order);
       return order;
     }
   }
 
   @Override
-  public OrderRecord addAsk(TraderRecord trader, int quantity, double price) {
+  public Order addAsk(TraderRecord trader, int quantity, double price) {
     synchronized (sync) {
-      long orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
+      var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
       stockMatcher.addOrderAsk(orderId, price, quantity); // this checks constraints
-      OrderRecord order = new OrderRecord(orderId, security, OrderType.ASK, trader, quantity, price);
+      Order order = new Order(orderId, security, OrderType.ASK, trader, quantity, price);
       orders.put(order.id(), order);
       return order;
     }
   }
 
   @Override
-  public OrderRecord removeOrder(long orderId) {
+  public Order removeOrder(long orderId) {
     synchronized (sync) {
       stockMatcher.removeOrder(orderId); // this checks constraints
       return orders.remove(orderId);
@@ -149,9 +178,9 @@ public class OrderBookImpl implements OrderBook {
   }
 
   @Override
-  public Iterable<OrderRecord> getActiveOrders() {
+  public Iterable<Order> getActiveOrders() {
     synchronized (sync) {
-      List<OrderRecord> records = new ArrayList<>(orders.size());
+      List<Order> records = new ArrayList<>(orders.size());
       records.addAll(orders.values());
       return Collections.unmodifiableList(records);
     }

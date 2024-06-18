@@ -8,5 +8,5 @@ public interface TraderManager {
 
   TraderRecord findTraderById(int id);
 
-  Iterable<TraderRecord> getAllTraders();
+  Iterable<? extends TraderRecord> getAllTraders();
 }

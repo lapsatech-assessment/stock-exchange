@@ -49,7 +49,7 @@ public class StockExchangeFacadeImpl implements StockExchangeFacade {
   }
 
   @Override
-  public Iterable<InstrumentRecord> listInstruments() {
+  public Iterable<? extends InstrumentRecord> listInstruments() {
     return instrumentManager.getAllInstruments();
   }
 
@@ -64,7 +64,7 @@ public class StockExchangeFacadeImpl implements StockExchangeFacade {
   }
 
   @Override
-  public Iterable<OrderRecord> listOrders(String symbol) {
+  public Iterable<? extends OrderRecord> listOrders(String symbol) {
     var instrument = instrumentManager.findInstrumentBySymbol(symbol);
     var book = orderBookManager.findBookByInstrument(instrument);
     return book.getActiveOrders();

@@ -14,5 +14,5 @@ public interface InstrumentManager {
 
   CompositeRecord createComposite(int instrumentId, String symbol, String[] componentSymbols);
 
-  Iterable<InstrumentRecord> getAllInstruments();
+  Iterable<? extends InstrumentRecord> getAllInstruments();
 }
