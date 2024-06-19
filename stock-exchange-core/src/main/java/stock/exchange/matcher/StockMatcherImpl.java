@@ -12,7 +12,6 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
 import it.unimi.dsi.fastutil.objects.ObjectHeapPriorityQueue;
 import stock.exchange.book.DuplicateOrderException;
-import stock.exchange.book.NoSuchOrderException;
 import stock.exchange.book.OrderPartiallyFilledException;
 import stock.exchange.domain.DoubleReference;
 
@@ -101,15 +100,16 @@ public class StockMatcherImpl implements StockMatcher {
   }
 
   @Override
-  public void removeOrder(long orderId) {
+  public boolean removeOrder(long orderId) {
     var e = index.get(orderId);
     if (e == null) {
-      throw new NoSuchOrderException();
+      return false;
     }
     if (e.quantityRemain != e.quantityRequested) {
       throw new OrderPartiallyFilledException();
     }
     index.remove(orderId);
+    return true;
   }
 
   @Override
@@ -198,7 +198,6 @@ public class StockMatcherImpl implements StockMatcher {
         orderFulfilledEventListener.onOrderFulfilled(buyer.orderId);
       } else {
         buyer.quantityRemain -= quantity;
-        queueHeadChanged(buyerQueue);
         orderPartiallyFilledEventListener.onOrderPartialyFilled(buyer.orderId, buyer.quantityRemain);
       }
 
@@ -208,19 +207,8 @@ public class StockMatcherImpl implements StockMatcher {
         orderFulfilledEventListener.onOrderFulfilled(seller.orderId);
       } else {
         seller.quantityRemain -= quantity;
-        queueHeadChanged(sellerQueue);
         orderPartiallyFilledEventListener.onOrderPartialyFilled(seller.orderId, seller.quantityRemain);
       }
-    }
-  }
-
-  private void queueHeadChanged(PriorityQueue<QE> queue) {
-    if (queue instanceof ObjectArrayFIFOQueue) {
-      return;
-    }
-    try {
-      queue.changed();
-    } catch (UnsupportedOperationException e) {
     }
   }
 

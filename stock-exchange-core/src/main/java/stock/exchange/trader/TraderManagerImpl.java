@@ -43,13 +43,13 @@ public class TraderManagerImpl implements TraderManager {
   }
 
   @Override
-  public Trader findTraderById(int id) {
+  public Trader findTraderById(int traderId) {
     reader.lock();
     try {
-      if (!traders.containsKey(id)) {
-        throw new NoSuchTraderTraderException();
+      if (!traders.containsKey(traderId)) {
+        throw new NoSuchTraderTraderException(traderId);
       }
-      return traders.get(id);
+      return traders.get(traderId);
     } finally {
       reader.unlock();
     }

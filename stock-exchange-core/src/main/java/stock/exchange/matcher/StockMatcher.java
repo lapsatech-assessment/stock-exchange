@@ -1,7 +1,6 @@
 package stock.exchange.matcher;
 
 import stock.exchange.book.DuplicateOrderException;
-import stock.exchange.book.NoSuchOrderException;
 import stock.exchange.book.OrderPartiallyFilledException;
 import stock.exchange.domain.DoubleReference;
 
@@ -91,13 +90,13 @@ public interface StockMatcher {
    * the queue
    * 
    * @param orderId the order id of the order being removed (canceled)
-   * @throws NoSuchOrderException          if the order with the given id is not
-   *                                       in the queue
    * @throws OrderPartiallyFilledException if the order is already partially
    *                                       executed and can'not be rmoved
    *                                       (canceled)
+   * @return true if the requested order actually removed from the matcher or
+   *         false if the order was not in the matcher queue befure the call
    */
-  void removeOrder(long orderId);
+  boolean removeOrder(long orderId);
 
   /**
    * Methods executes matching algorithm over all orders added to the matcher

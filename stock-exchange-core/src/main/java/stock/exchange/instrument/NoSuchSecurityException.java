@@ -3,9 +3,6 @@ package stock.exchange.instrument;
 @SuppressWarnings("serial")
 public class NoSuchSecurityException extends MarketDataException {
 
-  public NoSuchSecurityException() {
-  }
-
   public NoSuchSecurityException(String symbol) {
     super(symbol);
   }
