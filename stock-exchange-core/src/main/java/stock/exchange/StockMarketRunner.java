@@ -39,7 +39,11 @@ public class StockMarketRunner implements AutoCloseable {
         logger.info("Started");
         while (!stopped) {
           logger.debug("Tick");
-          book.tick();
+          try {
+            book.tick();
+          } catch (RuntimeException e) {
+            logger.error("Unable to tick", e);
+          }
           try {
             Thread.sleep(ticker.toMillis(), ticker.toNanosPart());
           } catch (InterruptedException e) {

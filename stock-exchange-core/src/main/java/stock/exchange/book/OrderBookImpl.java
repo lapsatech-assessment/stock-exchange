@@ -3,13 +3,21 @@ package stock.exchange.book;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import it.unimi.dsi.fastutil.PriorityQueue;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
 import stock.exchange.domain.OrderMatchRecord;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.OrderType;
@@ -25,9 +33,19 @@ public class OrderBookImpl implements OrderBook {
 
   private final SecurityRecord security;
 
-  private final StockMatcher stockMatcher = StockMatcher.newInstance();
+  private final StockMatcher stockMatcher;
 
-  private final Long2ObjectMap<Order> orders = new Long2ObjectOpenHashMap<>();
+  private final Lock stockMatcherLock = new ReentrantLock();
+  private final Lock orderCollectionsRead;
+  private final Lock orderCollectionsWrite;
+  {
+    ReadWriteLock rw = new ReentrantReadWriteLock();
+    orderCollectionsRead = rw.readLock();
+    orderCollectionsWrite = rw.writeLock();
+  }
+
+  private final Long2ObjectMap<Order> ordersIndex = new Long2ObjectOpenHashMap<>();
+  private final PriorityQueue<Order> ordersStagingQueue = new ObjectArrayFIFOQueue<>();
 
   private final Downstream<? super OrderMatchRecord> orderMatchDownstream;
   private final RejectedDownstream<? super OrderMatchRecord> orderMatchDownstreamRejected;
@@ -35,15 +53,30 @@ public class OrderBookImpl implements OrderBook {
   private final Downstream<? super OrderRecord> filledOrderDownstream;
   private final RejectedDownstream<? super OrderRecord> filledOrderDownstreamRejected;
 
-  private final Object sync = new Object();
-
   public OrderBookImpl(
       SecurityRecord security,
       Downstream<? super OrderMatchRecord> orderMatchDownstream,
       RejectedDownstream<? super OrderMatchRecord> orderMatchDownstreamRejected,
       Downstream<? super OrderRecord> filledOrderDownstream,
       RejectedDownstream<? super OrderRecord> filledOrderDownstreamRejected) {
+    this(
+        StockMatcher.newInstance(),
+        security,
+        orderMatchDownstream,
+        orderMatchDownstreamRejected,
+        filledOrderDownstream,
+        filledOrderDownstreamRejected);
+  }
+
+  private OrderBookImpl(
+      StockMatcher stockMatcher,
+      SecurityRecord security,
+      Downstream<? super OrderMatchRecord> orderMatchDownstream,
+      RejectedDownstream<? super OrderMatchRecord> orderMatchDownstreamRejected,
+      Downstream<? super OrderRecord> filledOrderDownstream,
+      RejectedDownstream<? super OrderRecord> filledOrderDownstreamRejected) {
     this.logger = LoggerFactory.getLogger("ORDER_BOOK_" + security.symbol());
+    this.stockMatcher = stockMatcher;
     this.security = security;
     this.orderMatchDownstream = orderMatchDownstream;
     this.orderMatchDownstreamRejected = orderMatchDownstreamRejected;
@@ -62,36 +95,77 @@ public class OrderBookImpl implements OrderBook {
 
   @Override
   public void tick() {
-    synchronized (sync) {
+
+    try {
+      stockMatcherLock.lockInterruptibly();
+    } catch (InterruptedException e) {
+      throw new OrderBookUnavailableException(e);
+    }
+
+    try {
+      Order o;
+
+      while (true) {
+
+        orderCollectionsWrite.lock();
+        try {
+          try {
+            o = ordersStagingQueue.dequeue();
+          } catch (NoSuchElementException e) {
+            break;
+          }
+          if (!ordersIndex.containsKey(o.id)) {
+            continue; // it's removed
+          }
+        } finally {
+          orderCollectionsWrite.unlock();
+        }
+
+        switch (o.type) {
+          case ASK:
+            stockMatcher.addOrderAsk(o.id, o.price, o.quantity);
+            break;
+          case BID:
+            stockMatcher.addOrderBid(o.id, o.price, o.quantity);
+            break;
+          case BUY:
+            stockMatcher.addOrderBuy(o.id, o.quantity);
+            break;
+          case SELL:
+            stockMatcher.addOrderSell(o.id, o.quantity);
+            break;
+        }
+      }
+
       stockMatcher.match(
           security.marketPrice(),
           (long buyingOrderId, long sellingOrderId, int quantity, double buyingPrice, double sellingPrice) -> {
-            Order buyingOrder = orders.get(buyingOrderId);
-            Order sellingOrder = orders.get(sellingOrderId);
-            OrderMatchRecord match = new OrderMatch(
+            Order buyingOrder = ordersIndex.get(buyingOrderId);
+            Order sellingOrder = ordersIndex.get(sellingOrderId);
+            OrderMatch orderMatch = new OrderMatch(
                 security,
                 buyingOrder,
                 sellingOrder,
                 quantity,
                 buyingPrice,
                 sellingPrice);
+
             try {
-              orderMatchDownstream.accept(match);
+              orderMatchDownstream.accept(orderMatch);
             } catch (RuntimeException e) {
               try {
-                orderMatchDownstreamRejected.accept(match, e);
+                orderMatchDownstreamRejected.accept(orderMatch, e);
               } catch (RuntimeException e1) {
                 logger.error("Rejected downstream exception", e1);
                 logger.error("Downstream exception", e);
               }
             }
-
           },
           (orderId, quantityLeft) -> {
             // update book for partially filled order values if needed
           },
           orderId -> {
-            Order order = orders.remove(orderId);
+            Order order = ordersIndex.remove(orderId);
             try {
               filledOrderDownstream.accept(order);
             } catch (RuntimeException e) {
@@ -103,6 +177,8 @@ public class OrderBookImpl implements OrderBook {
               }
             }
           });
+    } finally {
+      stockMatcherLock.unlock();
     }
   }
 
@@ -127,62 +203,85 @@ public class OrderBookImpl implements OrderBook {
 
   @Override
   public Order addBuy(TraderRecord trader, int quantity) {
-    synchronized (sync) {
-      long orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-      stockMatcher.addOrderBuy(orderId, quantity); // this checks constraints
-      var order = new Order(orderId, security, OrderType.BUY, trader, quantity, Double.NaN);
-      orders.put(order.id(), order);
-      return order;
-    }
+    return addOrder(trader, OrderType.BUY, quantity, Double.NaN);
   }
 
   @Override
   public Order addSell(TraderRecord trader, int quantity) {
-    synchronized (sync) {
-      var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-      stockMatcher.addOrderSell(orderId, quantity); // this checks constraints
-      var order = new Order(orderId, security, OrderType.SELL, trader, quantity, Double.NaN);
-      orders.put(order.id(), order);
-      return order;
-    }
+    return addOrder(trader, OrderType.SELL, quantity, Double.NaN);
   }
 
   @Override
   public Order addBid(TraderRecord trader, int quantity, double price) {
-    synchronized (sync) {
-      var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-      stockMatcher.addOrderBid(orderId, price, quantity); // this checks constraints
-      var order = new Order(orderId, security, OrderType.BID, trader, quantity, price);
-      orders.put(order.id(), order);
-      return order;
-    }
+    return addOrder(trader, OrderType.BID, quantity, price);
   }
 
   @Override
   public Order addAsk(TraderRecord trader, int quantity, double price) {
-    synchronized (sync) {
-      var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
-      stockMatcher.addOrderAsk(orderId, price, quantity); // this checks constraints
-      Order order = new Order(orderId, security, OrderType.ASK, trader, quantity, price);
-      orders.put(order.id(), order);
-      return order;
+    return addOrder(trader, OrderType.ASK, quantity, price);
+  }
+
+  private Order addOrder(TraderRecord trader, OrderType type, int quantity, double price) {
+    var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
+    var order = new Order(orderId, security, type, trader, quantity, price);
+    orderCollectionsWrite.lock();
+    try {
+      ordersIndex.merge(order.id, order, (o1, o2) -> {
+        throw new DuplicateOrderBookException();// Unlikely to happen as UUID guarantees the distinction
+      });
+      ordersStagingQueue.enqueue(order);
+    } finally {
+      orderCollectionsWrite.unlock();
+    }
+    return order;
+  }
+
+  @Override
+  public OrderRecord removeOrder(long orderId) {
+    try {
+      return removeOrder(orderId, 0, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      throw new OrderBookUnavailableException();
     }
   }
 
   @Override
-  public Order removeOrder(long orderId) {
-    synchronized (sync) {
-      stockMatcher.removeOrder(orderId); // this checks constraints
-      return orders.remove(orderId);
+  public Order removeOrder(long orderId, long timeout, TimeUnit timeuit) throws InterruptedException {
+    if (!stockMatcherLock.tryLock(timeout, timeuit)) {
+      throw new OrderBookUnavailableException();
+    }
+    try {
+      orderCollectionsWrite.lock();
+      try {
+        if (!ordersIndex.containsKey(orderId)) {
+          throw new NoSuchOrderException();
+        }
+        stockMatcher.removeOrder(orderId); // this checks constraints
+        return ordersIndex.remove(orderId);
+      } finally {
+        orderCollectionsWrite.unlock();
+      }
+    } finally {
+      stockMatcherLock.unlock();
     }
   }
 
   @Override
   public Iterable<Order> getActiveOrders() {
-    synchronized (sync) {
-      List<Order> records = new ArrayList<>(orders.size());
-      records.addAll(orders.values());
+    try {
+      orderCollectionsRead.lockInterruptibly();
+    } catch (InterruptedException e) {
+      throw new OrderBookUnavailableException(e);
+    }
+    try {
+      if (ordersIndex.isEmpty()) {
+        return Collections.emptyList();
+      }
+      List<Order> records = new ArrayList<>(ordersIndex.size());
+      records.addAll(ordersIndex.values());
       return Collections.unmodifiableList(records);
+    } finally {
+      orderCollectionsRead.unlock();
     }
   }
 }
