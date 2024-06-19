@@ -46,7 +46,6 @@ public class SimpleReusableObjects<T> implements ReusableObjects<T> {
     }
   }
 
-  @Override
   public long cachedTotal() {
     return pointer + 1;
   }
@@ -63,7 +62,6 @@ public class SimpleReusableObjects<T> implements ReusableObjects<T> {
     array.set(pointer, t);
   }
 
-  @Override
   public long createdTotal() {
     return createdCount;
   }

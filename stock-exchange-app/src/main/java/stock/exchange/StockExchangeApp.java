@@ -26,7 +26,7 @@ import stock.exchange.integration.FanOutDownstream;
 import stock.exchange.shell.ShellTerminalConsole;
 import stock.exchange.shell.StockExchangeShellRunner;
 import stock.exchange.shell.TcpSocketTerminalService;
-import stock.exchange.trade.TradeManagerImpl;
+import stock.exchange.trade.TradeGeneratorImpl;
 import stock.exchange.trader.TraderManager;
 import stock.exchange.trader.TraderManagerImpl;
 
@@ -83,7 +83,7 @@ public class StockExchangeApp {
 
       OrderBookManager orderBookManager = new OrderBookManagerImpl(
 
-          new TradeManagerImpl(
+          new TradeGeneratorImpl(
 
               new FanOutDownstream<>(
                   t -> logger.info("Trade executed {}", t),

@@ -18,12 +18,11 @@ import util.nogc.ReusableObjects;
 import util.nogc.SimpleReusableObjects;
 
 /**
- * This trade matching algorithm implementation of the order book queue
- * provides: FIFO algorithms for Market Orders and Time-price priority for Limit
- * Orders
+ * This trade matching algorithm implementation of the order book queue provides
+ * FIFO algorithms for market orders and time-price priority for limit orders.
  * 
- * The implementation is not thread safe so the access to that object should be
- * synchronized externally
+ * The implementation is not thread-safe, so access to this object should be
+ * synchronized externally.
  */
 public class StockMatcherImpl implements StockMatcher {
 
@@ -31,8 +30,8 @@ public class StockMatcherImpl implements StockMatcher {
 
     private double price;
     private long orderId;
-    private int quantityRequested;
-    private int quantityRemain;
+    private int quantity;
+    private int volumeRemain;
 
     private double price() {
       return price;
@@ -79,8 +78,8 @@ public class StockMatcherImpl implements StockMatcher {
     }
     QE e = qeCache.capture();
     e.orderId = orderId;
-    e.quantityRequested = quantity;
-    e.quantityRemain = quantity;
+    e.quantity = quantity;
+    e.volumeRemain = quantity;
     e.price = price;
     index.put(orderId, e);
     queue.enqueue(e);
@@ -92,7 +91,7 @@ public class StockMatcherImpl implements StockMatcher {
     if (qe == null) {
       return false;
     }
-    if (qe.quantityRemain != qe.quantityRequested) {
+    if (qe.volumeRemain != qe.quantity) {
       throw new OrderPartiallyFilledException();
     }
     qeCache.release(index.remove(orderId));
@@ -176,25 +175,25 @@ public class StockMatcherImpl implements StockMatcher {
         return;
       }
 
-      final int quantity = Math.min(buyer.quantityRemain, seller.quantityRemain);
+      final int quantity = Math.min(buyer.volumeRemain, seller.volumeRemain);
       orderMatchedEventListener.onOrderMatched(buyer.orderId, seller.orderId, quantity, buyerPrice, sellerPrice);
 
-      if (buyer.quantityRemain == quantity) {
+      if (buyer.volumeRemain == quantity) {
         buyerQueue.dequeue();
         qeCache.release(index.remove(buyer.orderId));
         orderFulfilledEventListener.onOrderFulfilled(buyer.orderId);
       } else {
-        buyer.quantityRemain -= quantity;
-        orderPartiallyFilledEventListener.onOrderPartialyFilled(buyer.orderId, buyer.quantityRemain);
+        buyer.volumeRemain -= quantity;
+        orderPartiallyFilledEventListener.onOrderPartialyFilled(buyer.orderId, buyer.volumeRemain);
       }
 
-      if (seller.quantityRemain == quantity) {
+      if (seller.volumeRemain == quantity) {
         sellerQueue.dequeue();
         qeCache.release(index.remove(seller.orderId));
         orderFulfilledEventListener.onOrderFulfilled(seller.orderId);
       } else {
-        seller.quantityRemain -= quantity;
-        orderPartiallyFilledEventListener.onOrderPartialyFilled(seller.orderId, seller.quantityRemain);
+        seller.volumeRemain -= quantity;
+        orderPartiallyFilledEventListener.onOrderPartialyFilled(seller.orderId, seller.volumeRemain);
       }
     }
   }

@@ -6,6 +6,9 @@ import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TraderRecord;
 
+/**
+ * Facade for accessing core functions in this trading system
+ */
 public interface StockExchangeFacade {
 
   SecurityRecord createSecurity(int instrumentId, String symbol, double initialPrice);

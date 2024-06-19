@@ -5,40 +5,65 @@ import stock.exchange.book.OrderPartiallyFilledException;
 import stock.exchange.domain.DoubleReference;
 
 /**
- * SotckMatcher is an abstract implementation of orders matching algorithm in
- * the trade system
+ * StockMatcher is an abstraction of the order matching strategy in the trading
+ * system.
  * 
- * The implementation is usually supposed to be stateful keeping all not filled
- * orders in the internal storage
+ * The implementation is typically stateful, keeping all unfilled orders in
+ * internal storage.
  * 
- * 
- * Implementations should guarantee consistency and correctness of trades
- * execution order as well as it should guarantee it's internal state
+ * Implementations should guarantee the consistency and correctness of the trade
+ * execution order.
  */
 public interface StockMatcher {
-
-  public static StockMatcher newInstance() {
-    return new StockMatcherImpl();
-  }
 
   @FunctionalInterface
   interface OrderMatchedEventListener {
 
     /**
-     * The method should be exceptions free
+     * The method is called each time the order matching mechanism identifies a pair
+     * of suitable orders for a trade
+     * 
+     * @param buyerOrderId     Buyer order ID
+     * @param sellerOrderId    Seller order ID
+     * @param quantity         Trade volume
+     * @param buyerOrderPrice  Buy order price
+     * @param sellerOrderPrice Sell order price
      */
-    void onOrderMatched(long buyingOrderId, long sellingOrderId, int quantity, double buyingPrice, double sellingPrice);
+    void onOrderMatched(long buyerOrderId, long sellerOrderId, int quantity, double buyerOrderPrice,
+        double sellerOrderPrice);
   }
 
   @FunctionalInterface
   interface OrderPartiallyFilledEventListener {
 
-    void onOrderPartialyFilled(long orderId, int quantityLeft);
+    /**
+     * The method is called each time the order matching mechanism determines that a
+     * specific order in the queue is only partially executed and an unfilled volume
+     * remains.
+     * 
+     * Calling this method typically means that the order still remains in the
+     * internal queue of the TradeMatcher and will continue to participate in
+     * matching for the remaining volume.
+     * 
+     * @param orderId      The order ID
+     * @param volumeRemain Unfilled order volume
+     */
+
+    void onOrderPartialyFilled(long orderId, int volumeRemain);
   }
 
   @FunctionalInterface
   public interface OrderFulfilledEventListener {
 
+    /**
+     * The method is called each time the order matching mechanism determines that a
+     * specific order in the queue is fully executed.
+     * 
+     * Calling this method typically means that the order will be removed from the
+     * internal queue of the TradeMatcher and will no longer participate in matching
+     * 
+     * @param orderId The order ID
+     */
     void onOrderFulfilled(long orderId);
   }
 
@@ -99,12 +124,13 @@ public interface StockMatcher {
   boolean removeOrder(long orderId);
 
   /**
-   * Methods executes matching algorithm over all orders added to the matcher
-   * previously and sends matching callback events if match occurs
+   * The method executes the matching algorithm over all orders that are in the
+   * internal queue of the TradeMatcher sends matching callback events if a match
+   * occurs.
    * 
    * The method also updates its internal state by removing fully filled orders
-   * from the queue and/or updates the remaining quantity of partially filled
-   * queues
+   * from the queue and/or updating the remaining quantity of partially filled
+   * orders.
    * 
    * @param marketPriceRef                    the reference to the current market
    *                                          price for the instrument

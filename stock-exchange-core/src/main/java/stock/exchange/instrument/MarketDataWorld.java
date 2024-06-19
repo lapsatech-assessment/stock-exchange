@@ -16,6 +16,15 @@ import stock.exchange.domain.DoubleReference;
 import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.SecurityRecord;
 
+/**
+ * A simple implementation of a market data service includes functions for
+ * managing instruments, processing incoming trade data, and retrieving current
+ * quote information.
+ * 
+ * In a production enterprise system, these implementations would likely be
+ * distributed across different components. However, for a prototype project,
+ * combining all functions into one may be sufficient.
+ */
 public class MarketDataWorld implements MarketDataReads, MarketDataWrites, InstrumentManager {
 
   private final Lock reader, writer;

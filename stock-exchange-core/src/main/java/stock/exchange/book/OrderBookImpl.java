@@ -25,6 +25,7 @@ import stock.exchange.domain.TraderRecord;
 import stock.exchange.integration.Downstream;
 import stock.exchange.integration.RejectedDownstream;
 import stock.exchange.matcher.StockMatcher;
+import stock.exchange.matcher.StockMatcherImpl;
 
 public class OrderBookImpl implements OrderBook {
 
@@ -60,7 +61,7 @@ public class OrderBookImpl implements OrderBook {
       Downstream<? super OrderRecord> filledOrderDownstream,
       RejectedDownstream<? super OrderRecord> filledOrderDownstreamRejected) {
     this(
-        StockMatcher.newInstance(),
+        new StockMatcherImpl(),
         security,
         orderMatchDownstream,
         orderMatchDownstreamRejected,
@@ -139,22 +140,22 @@ public class OrderBookImpl implements OrderBook {
 
       stockMatcher.match(
           security.marketPrice(),
-          (long buyingOrderId, long sellingOrderId, int quantity, double buyingPrice, double sellingPrice) -> {
-            Order buyingOrder = ordersIndex.get(buyingOrderId);
+          (long buyerOrderId, long sellerOrderId, int quantity, double buyerOrderPrice, double sellerOrderPrice) -> {
+            Order buyingOrder = ordersIndex.get(buyerOrderId);
             if (buyingOrder == null) {
-              throw new BookTickerFatalErrorException(new NoSuchOrderException(buyingOrderId));
+              throw new BookTickerFatalErrorException(new NoSuchOrderException(buyerOrderId));
             }
-            Order sellingOrder = ordersIndex.get(sellingOrderId);
+            Order sellingOrder = ordersIndex.get(sellerOrderId);
             if (sellingOrder == null) {
-              throw new BookTickerFatalErrorException(new NoSuchOrderException(sellingOrderId));
+              throw new BookTickerFatalErrorException(new NoSuchOrderException(sellerOrderId));
             }
             OrderMatch orderMatch = new OrderMatch(
                 security,
                 buyingOrder,
                 sellingOrder,
                 quantity,
-                buyingPrice,
-                sellingPrice);
+                buyerOrderPrice,
+                sellerOrderPrice);
 
             try {
               orderMatchDownstream.accept(orderMatch);
@@ -167,7 +168,7 @@ public class OrderBookImpl implements OrderBook {
               }
             }
           },
-          (orderId, quantityLeft) -> {
+          (orderId, volumeRemain) -> {
             // update book for partially filled order values if needed
           },
           orderId -> {
