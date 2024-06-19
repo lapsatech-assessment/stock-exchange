@@ -4,6 +4,9 @@ import stock.exchange.domain.CompositeRecord;
 import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.SecurityRecord;
 
+/**
+ * Interface for accessing and managing trading instruments
+ */
 public interface InstrumentManager {
 
   InstrumentRecord findInstrumentById(int instrumentId);

@@ -11,13 +11,13 @@ import stock.exchange.domain.TradeRecord;
 import stock.exchange.integration.Downstream;
 import stock.exchange.integration.RejectedDownstream;
 
-public class TradeManagerImpl implements TradeGenerator {
+public class TradeGeneratorImpl implements TradeGenerator {
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
   private final Downstream<TradeRecord> tradeDownstream;
   private final RejectedDownstream<TradeRecord> tradeDownstreamRejected;
 
-  public TradeManagerImpl(
+  public TradeGeneratorImpl(
       Downstream<TradeRecord> tradeDownstream,
       RejectedDownstream<TradeRecord> tradeDownstreamRejected) {
     this.tradeDownstream = tradeDownstream;

@@ -8,10 +8,9 @@ import stock.exchange.domain.TradeRecord
 import stock.exchange.integration.Downstream
 import stock.exchange.integration.RejectedDownstream
 
-class TradeManagerImplTest extends Specification {
+class TradeGeneratorImplTest extends Specification {
 
-
-  def tradeDownstream= Mock(Downstream)
+  def tradeDownstream = Mock(Downstream)
   def tradeDownstreamRejected = Mock(RejectedDownstream)
 
   def 'successful trade generation when #scenario' (def scenario, def buyOrderPrice, def buyOrderQuantity, def sellOrderPrice, def sellOrderQuantity, def buyPrice, def sellPrice, def tradeQuantity, def expectTradePrice) {
@@ -25,7 +24,7 @@ class TradeManagerImplTest extends Specification {
       price() >> sellOrderPrice
       quantity() >> sellOrderQuantity
     }
-    def subject = new TradeManagerImpl(tradeDownstream, tradeDownstreamRejected)
+    def subject = new TradeGeneratorImpl(tradeDownstream, tradeDownstreamRejected)
 
     when:
     subject.generateTrade(
@@ -77,7 +76,7 @@ class TradeManagerImplTest extends Specification {
       price() >> sellOrderPrice
       quantity() >> sellOrderQuantity
     }
-    def subject = new TradeManagerImpl(tradeDownstream, tradeDownstreamRejected)
+    def subject = new TradeGeneratorImpl(tradeDownstream, tradeDownstreamRejected)
 
     when:
     subject.generateTrade(
