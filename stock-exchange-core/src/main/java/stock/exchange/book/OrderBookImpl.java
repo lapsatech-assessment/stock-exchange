@@ -38,6 +38,7 @@ public class OrderBookImpl implements OrderBook {
   private final Lock stockMatcherLock = new ReentrantLock();
   private final Lock orderCollectionsRead;
   private final Lock orderCollectionsWrite;
+
   {
     ReadWriteLock rw = new ReentrantReadWriteLock();
     orderCollectionsRead = rw.readLock();
@@ -141,7 +142,13 @@ public class OrderBookImpl implements OrderBook {
           security.marketPrice(),
           (long buyingOrderId, long sellingOrderId, int quantity, double buyingPrice, double sellingPrice) -> {
             Order buyingOrder = ordersIndex.get(buyingOrderId);
+            if (buyingOrder == null) {
+              throw new BookTickerFatalErrorException(new NoSuchOrderException(buyingOrderId));
+            }
             Order sellingOrder = ordersIndex.get(sellingOrderId);
+            if (sellingOrder == null) {
+              throw new BookTickerFatalErrorException(new NoSuchOrderException(sellingOrderId));
+            }
             OrderMatch orderMatch = new OrderMatch(
                 security,
                 buyingOrder,
@@ -166,6 +173,9 @@ public class OrderBookImpl implements OrderBook {
           },
           orderId -> {
             Order order = ordersIndex.remove(orderId);
+            if (order == null) {
+              throw new BookTickerFatalErrorException(new NoSuchOrderException(orderId));
+            }
             try {
               filledOrderDownstream.accept(order);
             } catch (RuntimeException e) {
@@ -223,6 +233,15 @@ public class OrderBookImpl implements OrderBook {
 
   private Order addOrder(TraderRecord trader, OrderType type, int quantity, double price) {
     var orderId = Math.abs(UUID.randomUUID().getMostSignificantBits());
+    if (trader == null) {
+      throw new OrderTraderValidationException();
+    }
+    if (quantity <= 0) {
+      throw new OrderQuantityValidationException();
+    }
+    if (!Double.isNaN(price) && price <= 0) {
+      throw new OrderPriceValidationException();
+    }
     var order = new Order(orderId, security, type, trader, quantity, price);
     orderCollectionsWrite.lock();
     try {
@@ -254,7 +273,7 @@ public class OrderBookImpl implements OrderBook {
       orderCollectionsWrite.lock();
       try {
         if (!ordersIndex.containsKey(orderId)) {
-          throw new NoSuchOrderException();
+          throw new NoSuchOrderException(orderId);
         }
         stockMatcher.removeOrder(orderId); // this checks constraints
         return ordersIndex.remove(orderId);

@@ -19,7 +19,6 @@ class StockMatcherImplTest extends Specification {
   def subject = new StockMatcherImpl()
 
   def 'market orders only : two orders quantity1 = quantity2 are matched and fulfilled'() {
-
     given:
     marketPriceRef.getAsDouble() >>> [666.00d]
     subject.addOrderBuy(100001, 100)
@@ -65,7 +64,7 @@ class StockMatcherImplTest extends Specification {
     subject.addOrderBuy(100001, 100)
     subject.addOrderSell(200001, 70)
     subject.addOrderSell(200002, 30)
-    
+
     when:
     subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
@@ -122,7 +121,7 @@ class StockMatcherImplTest extends Specification {
     marketPriceRef.getAsDouble() >>> [666.00d, 777.00d, 888.00d]
     subject.addOrderBuy(100001, 100)
     subject.addOrderSell(200001, 70)
-    
+
     when:
     subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
@@ -144,7 +143,7 @@ class StockMatcherImplTest extends Specification {
     1 * orderMatchListener.onOrderMatched(100001, 200002, 30, 777.00d, 777.00d)
     1 * orderFulfilledEventListener.onOrderFulfilled(100001)
     1 * orderPartiallyFilledEventListener.onOrderPartialyFilled(200002, 10)
-    
+
     then:
     0 * orderMatchListener._
     0 * orderFulfilledEventListener._
@@ -446,7 +445,7 @@ class StockMatcherImplTest extends Specification {
     marketPriceRef.getAsDouble() >>> [20.00d]
     subject.addOrderBuy(100001, 100)
     subject.addOrderAsk(200001, 10.00, 100)
-    
+
     when:
     subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
@@ -481,7 +480,7 @@ class StockMatcherImplTest extends Specification {
     marketPriceRef.getAsDouble() >>> [10.00d]
     subject.addOrderBuy(100001, 100)
     subject.addOrderAsk(200001, 20.00, 100)
-    
+
     when:
     subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
 
@@ -491,4 +490,33 @@ class StockMatcherImplTest extends Specification {
     0 * orderPartiallyFilledEventListener._
   }
 
+  def 'remove order : succesful, no match'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 100)
+
+    when:
+    subject.removeOrder(200001)
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    then:
+    0 * orderMatchListener._
+    0 * orderFulfilledEventListener._
+    0 * orderPartiallyFilledEventListener._
+  }
+
+  def 'remove order : attempt to remove partially filled order causes to exception'() {
+    given:
+    marketPriceRef.getAsDouble() >>> [666.00d]
+    subject.addOrderBuy(100001, 100)
+    subject.addOrderSell(200001, 50)
+    subject.match(marketPriceRef, orderMatchListener, orderPartiallyFilledEventListener, orderFulfilledEventListener)
+
+    when:
+    subject.removeOrder(100001)
+
+    then:
+    thrown(OrderPartiallyFilledException)
+  }
 }

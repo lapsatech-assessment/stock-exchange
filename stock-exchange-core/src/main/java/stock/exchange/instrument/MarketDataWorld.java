@@ -50,7 +50,7 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
     try {
       InstrumentRecord rec = instrumentsById.get(instrumentId);
       if (rec == null) {
-        throw new NoSuchInstrumentException();
+        throw new NoSuchInstrumentException(instrumentId);
       }
       return rec;
     } finally {
@@ -64,7 +64,7 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
     try {
       InstrumentRecord rec = instrumentsBySymbol.get(symbol);
       if (rec == null) {
-        throw new NoSuchInstrumentException();
+        throw new NoSuchInstrumentException(symbol);
       }
       return rec;
     } finally {
@@ -78,7 +78,7 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
     try {
       DoubleReference ref = marketPrices.get(instrumentId);
       if (ref == null) {
-        throw new NoSuchInstrumentException();
+        throw new NoSuchInstrumentException(instrumentId);
       }
       return ref;
     } finally {
