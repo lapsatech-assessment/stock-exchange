@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -256,18 +255,11 @@ public class OrderBookImpl implements OrderBook {
   }
 
   @Override
-  public OrderRecord removeOrder(long orderId) {
+  public Order removeOrder(long orderId) {
     try {
-      return removeOrder(orderId, 0, TimeUnit.MILLISECONDS);
+      stockMatcherLock.lockInterruptibly();
     } catch (InterruptedException e) {
-      throw new OrderBookUnavailableException();
-    }
-  }
-
-  @Override
-  public Order removeOrder(long orderId, long timeout, TimeUnit timeuit) throws InterruptedException {
-    if (!stockMatcherLock.tryLock(timeout, timeuit)) {
-      throw new OrderBookUnavailableException();
+      throw new OrderBookUnavailableException(e);
     }
     try {
       orderCollectionsWrite.lock();
