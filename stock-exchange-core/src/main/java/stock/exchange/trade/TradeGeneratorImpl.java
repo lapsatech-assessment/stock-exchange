@@ -35,49 +35,53 @@ public class TradeGeneratorImpl implements TradeGenerator {
 
   @Override
   public void generateTrade(
+      double marketPrice,
       SecurityRecord security,
-      OrderRecord buyingOrder,
-      double buyingPrice,
-      OrderRecord sellingOrder,
-      double sellingPrice,
+      OrderRecord buyerOrder,
+      OrderRecord sellerOrder,
       int quantity) {
 
-    if (buyingPrice <= 0) {
-      throw new TradeInvalidPriceException(buyingPrice);
+    double buyerPrice = Double.isNaN(buyerOrder.price()) ? marketPrice : buyerOrder.price();
+    double sellerPrice = Double.isNaN(sellerOrder.price()) ? marketPrice : sellerOrder.price();
+
+    if (buyerPrice <= 0) {
+      throw new TradeInvalidPriceException(buyerPrice);
     }
 
-    if (buyingPrice > buyingOrder.price()) {
-      throw new TradeAndOrderPriceMismatchException(buyingPrice, "higher", buyingOrder.price());
+    if (sellerPrice <= 0) {
+      throw new TradeInvalidPriceException(sellerPrice);
     }
 
-    if (sellingPrice <= 0) {
-      throw new TradeInvalidPriceException(sellingPrice);
+    if (buyerPrice < sellerPrice) {
+      throw new TradePriceMistmachValidationException(buyerPrice, sellerPrice);
     }
 
-    if (sellingPrice < sellingOrder.price()) {
-      throw new TradeAndOrderPriceMismatchException(sellingPrice, "lower", sellingOrder.price());
+    if (quantity > buyerOrder.quantity()) {
+      throw new TradeAndOrderQuantityMismatchException(quantity, "greater", buyerOrder.quantity());
     }
 
-    if (buyingPrice < sellingPrice) {
-      throw new TradePriceMistmachValidationException(buyingPrice, sellingPrice);
+    if (quantity > sellerOrder.quantity()) {
+      throw new TradeAndOrderQuantityMismatchException(quantity, "greater", sellerOrder.quantity());
     }
 
-    if (quantity > buyingOrder.quantity()) {
-      throw new TradeAndOrderQuantityMismatchException(quantity, "greater", buyingOrder.quantity());
+    final double tradePrice;
+    if (buyerPrice == sellerPrice) {
+      tradePrice = buyerPrice;
+    } else if (sellerOrder.timestamp().isAfter(buyerOrder.timestamp())) {
+      // seller first
+      tradePrice = sellerPrice;
+    } else {
+      // buyer first
+      tradePrice = buyerPrice;
     }
 
-    if (quantity > sellingOrder.quantity()) {
-      throw new TradeAndOrderQuantityMismatchException(quantity, "greater", sellingOrder.quantity());
-    }
-
-    double tradePrice = (buyingPrice + sellingPrice) / 2; // avg
     long tradeId = Math.abs(UUID.randomUUID().getMostSignificantBits());
 
     var trade = new Trade(
         tradeId,
         security,
-        buyingOrder,
-        sellingOrder,
+        buyerOrder,
+        sellerOrder,
         tradePrice,
         quantity);
 
