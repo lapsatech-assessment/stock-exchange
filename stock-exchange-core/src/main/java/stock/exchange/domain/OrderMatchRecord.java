@@ -2,16 +2,13 @@ package stock.exchange.domain;
 
 public interface OrderMatchRecord {
 
+  double marketPrice();
+
   SecurityRecord security();
 
-  OrderRecord buyingOrder();
+  OrderRecord buyerOrder();
 
-  OrderRecord sellingOrder();
+  OrderRecord sellerOrder();
 
   int quantity();
-
-  double buyingPrice();
-
-  double sellingPrice();
-
 }

@@ -99,52 +99,60 @@ public class StockMatcherImpl implements StockMatcher {
   }
 
   @Override
-  public void match(
-      DoubleReference marketPriceRef,
+  public boolean match(
+      DoubleReference marketPrice,
       OrderMatchedEventListener orderMatchedEventListener,
       OrderPartiallyFilledEventListener orderPartiallyFilledEventListener,
       OrderFulfilledEventListener orderFulfilledEventListener) {
-    double marketPrice = marketPriceRef.getAsDouble();
-    ToDoubleFunction<QE> marketPriceFunction = x -> marketPrice;
+    ToDoubleFunction<QE> marketPriceFunction = x -> marketPrice.getAsDouble();
     // match orders bid <-> ask
-    matchQueues(
+    if (matchQueues(
         orderMatchedEventListener,
         orderPartiallyFilledEventListener,
         orderFulfilledEventListener,
         bidQueue,
         askQueue,
         QE::price,
-        QE::price);
+        QE::price)) {
+      return true;
+    }
     // match orders bid <-> sell(marketPrice)
-    matchQueues(
+    if (matchQueues(
         orderMatchedEventListener,
         orderPartiallyFilledEventListener,
         orderFulfilledEventListener,
         bidQueue,
         sellQueue,
         QE::price,
-        marketPriceFunction);
+        marketPriceFunction)) {
+      return true;
+    }
     // match orders buy(marketPrice) <-> ask
-    matchQueues(
+    if (matchQueues(
         orderMatchedEventListener,
         orderPartiallyFilledEventListener,
         orderFulfilledEventListener,
         buyQueue,
         askQueue,
         marketPriceFunction,
-        QE::price);
+        QE::price)) {
+      return true;
+    }
     // match orders buy(marketPrice) <-> sell(marketPrice)
-    matchQueues(
+    if (matchQueues(
         orderMatchedEventListener,
         orderPartiallyFilledEventListener,
         orderFulfilledEventListener,
         buyQueue,
         sellQueue,
         marketPriceFunction,
-        marketPriceFunction);
+        marketPriceFunction)) {
+      return true;
+    }
+    return false;
   }
 
-  private void matchQueues(
+  private boolean matchQueues(
       OrderMatchedEventListener orderMatchedEventListener,
       OrderPartiallyFilledEventListener orderPartiallyFilledEventListener,
       OrderFulfilledEventListener orderFulfilledEventListener,
@@ -156,46 +164,44 @@ public class StockMatcherImpl implements StockMatcher {
     QE buyer, seller;
     double buyerPrice, sellerPrice;
 
-    for (;;) {
-
-      buyer = firstDequeueRemoved(buyerQueue);
-      if (buyer == null) {
-        return;
-      }
-
-      seller = firstDequeueRemoved(sellerQueue);
-      if (seller == null) {
-        return;
-      }
-
-      buyerPrice = buyerPriceFunction.applyAsDouble(buyer);
-      sellerPrice = sellerPriceFunction.applyAsDouble(seller);
-
-      if (buyerPrice < sellerPrice) {
-        return;
-      }
-
-      final int quantity = Math.min(buyer.volumeRemain, seller.volumeRemain);
-      orderMatchedEventListener.onOrderMatched(buyer.orderId, seller.orderId, quantity, buyerPrice, sellerPrice);
-
-      if (buyer.volumeRemain == quantity) {
-        buyerQueue.dequeue();
-        qeCache.release(index.remove(buyer.orderId));
-        orderFulfilledEventListener.onOrderFulfilled(buyer.orderId);
-      } else {
-        buyer.volumeRemain -= quantity;
-        orderPartiallyFilledEventListener.onOrderPartialyFilled(buyer.orderId, buyer.volumeRemain);
-      }
-
-      if (seller.volumeRemain == quantity) {
-        sellerQueue.dequeue();
-        qeCache.release(index.remove(seller.orderId));
-        orderFulfilledEventListener.onOrderFulfilled(seller.orderId);
-      } else {
-        seller.volumeRemain -= quantity;
-        orderPartiallyFilledEventListener.onOrderPartialyFilled(seller.orderId, seller.volumeRemain);
-      }
+    buyer = firstDequeueRemoved(buyerQueue);
+    if (buyer == null) {
+      return false;
     }
+
+    seller = firstDequeueRemoved(sellerQueue);
+    if (seller == null) {
+      return false;
+    }
+
+    buyerPrice = buyerPriceFunction.applyAsDouble(buyer);
+    sellerPrice = sellerPriceFunction.applyAsDouble(seller);
+
+    if (buyerPrice < sellerPrice) {
+      return false;
+    }
+
+    final int quantity = Math.min(buyer.volumeRemain, seller.volumeRemain);
+    orderMatchedEventListener.onOrderMatched(buyer.orderId, seller.orderId, quantity);
+
+    if (buyer.volumeRemain == quantity) {
+      buyerQueue.dequeue();
+      qeCache.release(index.remove(buyer.orderId));
+      orderFulfilledEventListener.onOrderFulfilled(buyer.orderId);
+    } else {
+      buyer.volumeRemain -= quantity;
+      orderPartiallyFilledEventListener.onOrderPartialyFilled(buyer.orderId, buyer.volumeRemain);
+    }
+
+    if (seller.volumeRemain == quantity) {
+      sellerQueue.dequeue();
+      qeCache.release(index.remove(seller.orderId));
+      orderFulfilledEventListener.onOrderFulfilled(seller.orderId);
+    } else {
+      seller.volumeRemain -= quantity;
+      orderPartiallyFilledEventListener.onOrderPartialyFilled(seller.orderId, seller.volumeRemain);
+    }
+    return true;
   }
 
   private QE firstDequeueRemoved(PriorityQueue<QE> queue) {

@@ -1,5 +1,10 @@
 package stock.exchange.trade
 
+import static java.lang.Double.NaN
+
+import java.time.Instant
+
+import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Subject
 import stock.exchange.domain.OrderRecord
@@ -13,28 +18,44 @@ class TradeGeneratorImplTest extends Specification {
   def tradeDownstream = Mock(Downstream)
   def tradeDownstreamRejected = Mock(RejectedDownstream)
 
-  def 'successful trade generation when #scenario' (def scenario, def buyOrderPrice, def buyOrderQuantity, def sellOrderPrice, def sellOrderQuantity, def buyPrice, def sellPrice, def tradeQuantity, def expectTradePrice) {
+  @Shared
+  def firstTs = Instant.now()
+
+  @Shared
+  def secondTs = Instant.now().plusMillis(1)
+  
+  def 'successful trade generation when #scenario' (
+    def scenario,
+    def marketPrice,
+    def buyPrice, 
+    def buyQuantity, 
+    def buyTs, 
+    def sellPrice, 
+    def sellQuantity, 
+    def sellTs, 
+    def tradeQuantity, 
+    def expectTradePrice) {
     given:
     def secur1 = Stub(SecurityRecord)
     def buyingOrder = Stub(OrderRecord) {
-      price() >> buyOrderPrice
-      quantity() >> buyOrderQuantity
+      price() >> buyPrice
+      quantity() >> buyQuantity
+      timestamp() >> buyTs
     }
     def sellingOrder = Stub(OrderRecord) {
-      price() >> sellOrderPrice
-      quantity() >> sellOrderQuantity
+      price() >> sellPrice
+      quantity() >> sellQuantity
+      timestamp() >> sellTs
     }
     def subject = new TradeGeneratorImpl(tradeDownstream, tradeDownstreamRejected)
 
     when:
     subject.generateTrade(
+        marketPrice,
         secur1,
         buyingOrder,
-        buyPrice,
         sellingOrder,
-        sellPrice,
-        tradeQuantity
-        )
+        tradeQuantity)
 
     then:
     1 * tradeDownstream.accept({
@@ -49,42 +70,50 @@ class TradeGeneratorImplTest extends Specification {
     0 * tradeDownstreamRejected._
 
     where:
-    scenario                              | buyOrderPrice | buyOrderQuantity | sellOrderPrice | sellOrderQuantity | buyPrice | sellPrice | tradeQuantity | expectTradePrice
-    'prices are equal'                    |       100.00d |              100 |        100.00d |               100 |  100.00d |   100.00d |            75 |          100.00d
-    'buy price is higher than sell price' |       110.00d |              100 |        100.00d |               100 |  110.00d |   100.00d |            75 |          105.00d
-    'buy price is higher than sell price' |       110.00d |              100 |        100.00d |               100 |  110.00d |   100.00d |            75 |          105.00d
+    scenario                                                                                    | marketPrice | buyPrice | buyQuantity | buyTs    | sellPrice | sellQuantity | sellTs   | tradeQuantity | expectTradePrice
+    'prices are set and equal and buyer was first'                                              |     150.00d |  100.00d |          10 | firstTs  |   100.00d |           10 | secondTs |            10 |          100.00d
+    'prices are set are equal and seller was first'                                             |     150.00d |  100.00d |          10 | secondTs |   100.00d |           10 | firstTs  |            10 |          100.00d
+
+    'prices are set buy > sell and buyer first -> seller\'s price priority'                     |     150.00d |  200.00d |          10 | firstTs  |   100.00d |           10 | secondTs |            10 |          100.00d
+    'prices are set buy > sell and seller first -> buyer\'s price priority'                     |     150.00d |  200.00d |          10 | secondTs |   100.00d |           10 | firstTs  |            10 |          200.00d
+
+    'buy price not set and sell price not set -> market price'                                  |     150.00d |      NaN |          10 | firstTs  |       NaN |           10 | secondTs |            10 |          150.00d
+
+    'buy price not set and sell price set and buyer first -> seller\'s price priority'          |     150.00d |      NaN |          10 | firstTs  |   100.00d |           10 | secondTs |            10 |          100.00d
+    'buy price not set and sell price set and seller first -> buyer\'s (market) price priority' |     150.00d |      NaN |          10 | secondTs |   100.00d |           10 | firstTs  |            10 |          150.00d
+
+    'buy price set and sell not price set and buyer first -> seller\'s price priority'          |     150.00d |  200.00d |          10 | firstTs  |       NaN |           10 | secondTs |            10 |          150.00d
+    'buy price set and sell not price set and seller first -> buyer\'s (market) price priority' |     150.00d |  200.00d |          10 | secondTs |       NaN |           10 | firstTs  |            10 |          200.00d
   }
 
   def '#scenario causes to exception' (
     def scenario, 
-    def buyOrderPrice,
-    def buyOrderQuantity,
-    def sellOrderPrice,
-    def sellOrderQuantity,
-    def buyPrice, 
-    def sellPrice, 
+    def marketPrice,
+    def buyPrice,
+    def buyQuantity,
+    def sellPrice,
+    def sellQuantity,
     def quantity, 
     def expectException) {
 
     given:
     def secur1 = Stub(SecurityRecord)
     def buyingOrder = Stub(OrderRecord) {
-      price() >> buyOrderPrice
-      quantity() >> buyOrderQuantity
+      price() >> buyPrice
+      quantity() >> buyQuantity
     }
     def sellingOrder = Stub(OrderRecord) {
-      price() >> sellOrderPrice
-      quantity() >> sellOrderQuantity
+      price() >> sellPrice
+      quantity() >> sellQuantity
     }
     def subject = new TradeGeneratorImpl(tradeDownstream, tradeDownstreamRejected)
-
+    
     when:
     subject.generateTrade(
+      marketPrice,
       secur1,
       buyingOrder,
-      buyPrice,
       sellingOrder,
-      sellPrice,
       quantity)
 
     then:
@@ -93,13 +122,11 @@ class TradeGeneratorImplTest extends Specification {
     0 * tradeDownstreamRejected._
 
     where:
-    scenario                                      | buyOrderPrice | buyOrderQuantity | sellOrderPrice | sellOrderQuantity | buyPrice |  sellPrice | quantity | expectException
-    'buying price below zero'                     |       100.00d |               75 |        100.00d |                75 | -100.00d |  100.00d   |       75 | TradeInvalidPriceException
-    'sell price below zero'                       |       100.00d |               75 |        100.00d |                75 |  100.00d | -100.00d   |       75 | TradeInvalidPriceException
-    'buying price greater than order price'       |       100.00d |               75 |        100.00d |                75 |  120.00d |  100.00d   |       75 | TradeAndOrderPriceMismatchException
-    'selling price lower than order price'        |       100.00d |               75 |        100.00d |                75 |  100.00d |   80.00d   |       75 | TradeAndOrderPriceMismatchException
-    'buying price lower than selling price'       |       100.00d |               75 |        100.00d |                75 |   90.00d |  110.00d   |       75 | TradePriceMistmachValidationException
-    'quntity greater than buying order quantity'  |       100.00d |               50 |        100.00d |                75 |  100.00d |  100.00d   |       75 | TradeAndOrderQuantityMismatchException
-    'quntity greater than selling order quantity' |       100.00d |               75 |        100.00d |                50 |  100.00d |  100.00d   |       75 | TradeAndOrderQuantityMismatchException
+    scenario                                      | marketPrice | buyPrice | buyQuantity | sellPrice | sellQuantity | quantity | expectException
+    'buying price below zero'                     |     150.00d | -100.00d |          75 |   100.00d |           75 |       75 | TradeInvalidPriceException
+    'sell price below zero'                       |     150.00d |  100.00d |          75 |  -100.00d |           75 |       75 | TradeInvalidPriceException
+    'buying price lower than selling price'       |     150.00d |   90.00d |          75 |   100.00d |           75 |       75 | TradePriceMistmachValidationException
+    'quntity greater than buying order quantity'  |     150.00d |  100.00d |          50 |   100.00d |           75 |       75 | TradeAndOrderQuantityMismatchException
+    'quntity greater than selling order quantity' |     150.00d |  100.00d |          75 |   100.00d |           50 |       75 | TradeAndOrderQuantityMismatchException
    }
 }

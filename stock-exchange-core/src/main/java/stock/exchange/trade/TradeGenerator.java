@@ -16,15 +16,19 @@ public interface TradeGenerator extends Downstream<OrderMatchRecord> {
    * @throws TradeValidationException
    */
   void generateTrade(
+      double marketPrice,
       SecurityRecord instrument,
-      OrderRecord buyingOrder,
-      double buyingPrice,
-      OrderRecord sellingOrder,
-      double sellingPrice,
+      OrderRecord buyerOrder,
+      OrderRecord sellerOrder,
       int quantity);
 
   @Override
   default void accept(OrderMatchRecord t) {
-    generateTrade(t.security(), t.buyingOrder(), t.buyingPrice(), t.sellingOrder(), t.sellingPrice(), t.quantity());
+    generateTrade(
+        t.marketPrice(),
+        t.security(),
+        t.buyerOrder(),
+        t.sellerOrder(),
+        t.quantity());
   }
 }

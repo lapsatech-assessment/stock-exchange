@@ -1,5 +1,6 @@
 package stock.exchange.book;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -86,12 +87,11 @@ public class OrderBookImpl implements OrderBook {
   }
 
   private record OrderMatch(
+      double marketPrice,
       SecurityRecord security,
-      OrderRecord buyingOrder,
-      OrderRecord sellingOrder,
-      int quantity,
-      double buyingPrice,
-      double sellingPrice) implements OrderMatchRecord {
+      OrderRecord buyerOrder,
+      OrderRecord sellerOrder,
+      int quantity) implements OrderMatchRecord {
   }
 
   @Override
@@ -138,9 +138,11 @@ public class OrderBookImpl implements OrderBook {
         }
       }
 
-      stockMatcher.match(
+      final double marketPrice = security.marketPrice().getAsDouble();
+
+      while (stockMatcher.match(
           security.marketPrice(),
-          (long buyerOrderId, long sellerOrderId, int quantity, double buyerOrderPrice, double sellerOrderPrice) -> {
+          (long buyerOrderId, long sellerOrderId, int quantity) -> {
             Order buyingOrder = ordersIndex.get(buyerOrderId);
             if (buyingOrder == null) {
               throw new BookTickerFatalErrorException(new NoSuchOrderException(buyerOrderId));
@@ -149,13 +151,13 @@ public class OrderBookImpl implements OrderBook {
             if (sellingOrder == null) {
               throw new BookTickerFatalErrorException(new NoSuchOrderException(sellerOrderId));
             }
+
             OrderMatch orderMatch = new OrderMatch(
+                marketPrice,
                 security,
                 buyingOrder,
                 sellingOrder,
-                quantity,
-                buyerOrderPrice,
-                sellerOrderPrice);
+                quantity);
 
             try {
               orderMatchDownstream.accept(orderMatch);
@@ -186,7 +188,9 @@ public class OrderBookImpl implements OrderBook {
                 logger.error("Downstream exception", e);
               }
             }
-          });
+          })) {
+      }
+      ;
     } finally {
       stockMatcherLock.unlock();
     }
@@ -208,7 +212,8 @@ public class OrderBookImpl implements OrderBook {
       OrderType type,
       TraderRecord trader,
       int quantity,
-      double price) implements OrderRecord {
+      double price,
+      Instant timestamp) implements OrderRecord {
   }
 
   @Override
@@ -242,7 +247,7 @@ public class OrderBookImpl implements OrderBook {
     if (!Double.isNaN(price) && price <= 0) {
       throw new OrderPriceValidationException();
     }
-    var order = new Order(orderId, security, type, trader, quantity, price);
+    var order = new Order(orderId, security, type, trader, quantity, price, Instant.now());
     orderCollectionsWrite.lock();
     try {
       ordersIndex.merge(order.id, order, (o1, o2) -> {

@@ -1,5 +1,7 @@
 package stock.exchange.domain;
 
+import java.time.Instant;
+
 public interface OrderRecord {
   long id();
 
@@ -12,4 +14,6 @@ public interface OrderRecord {
   int quantity();
 
   double price();
+  
+  Instant timestamp();
 }

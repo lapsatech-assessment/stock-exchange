@@ -8,6 +8,7 @@ import spock.lang.Shared
 import spock.lang.Specification
 import spock.lang.Timeout
 import spock.lang.Unroll
+import stock.exchange.domain.DoubleReference
 import stock.exchange.domain.OrderMatchRecord
 import stock.exchange.domain.OrderType
 import stock.exchange.domain.SecurityRecord
@@ -30,7 +31,11 @@ class OrderBookImplTest extends Specification {
   def trader3 = Stub(TraderRecord)
 
   def stockMatcher = Mock(StockMatcher)
-  def security = Stub(SecurityRecord)
+  def security = Stub(SecurityRecord) {
+    marketPrice() >> Stub(DoubleReference) {
+      getAsDouble() >> 666.00d
+    }
+  }
   def orderMatchDownstream = Mock(Downstream)
   def orderMatchRejectedDownstream = Mock(RejectedDownstream)
   def filledOrderDownstream = Mock(Downstream)
@@ -197,8 +202,8 @@ class OrderBookImplTest extends Specification {
     def order4 = subject.addSell(trader1, 200)
     stockMatcher.match(_, _, _, _) >> {
       with (it[1] as OrderMatchedEventListener) {
-        onOrderMatched(order1.id(), order2.id(), 100, 10d, 15d)
-        onOrderMatched(order3.id(), order4.id(), 200, 20d, 25d)
+        onOrderMatched(order1.id(), order2.id(), 100)
+        onOrderMatched(order3.id(), order4.id(), 200)
       }
     }
 
@@ -208,20 +213,18 @@ class OrderBookImplTest extends Specification {
     then:
     1 * orderMatchDownstream.accept({
       with (it as OrderMatchRecord) {
-        buyingOrder() == order1
-        sellingOrder() == order2
+        marketPrice() == 666.00d
+        buyerOrder() == order1
+        sellerOrder() == order2
         quantity() == 100
-        buyingPrice() == 10d
-        sellingPrice() == 15d
       }
     })
     1 * orderMatchDownstream.accept({
       with (it as OrderMatchRecord) {
-        buyingOrder() == order3
-        sellingOrder() == order4
+        marketPrice() == 666.00d
+        buyerOrder() == order3
+        sellerOrder() == order4
         quantity() == 200
-        buyingPrice() == 20d
-        sellingPrice() == 25d
       }
     })
 
@@ -245,22 +248,21 @@ class OrderBookImplTest extends Specification {
 
     stockMatcher.match(_, _, _, _) >> {
       with (it[1] as OrderMatchedEventListener) {
-        onOrderMatched(order1.id(), order2.id(), 100, 10d, 15d)
-        onOrderMatched(order3.id(), order4.id(), 200, 20d, 25d)
+        onOrderMatched(order1.id(), order2.id(), 100)
+        onOrderMatched(order3.id(), order4.id(), 200)
       }
     }
 
     when:
     subject.tick()
-    OrderMatchRecord q;
 
     then:
-    1 * orderMatchDownstream.accept({ it.buyingOrder() == order1 }) >> { throw e1 }
-    1 * orderMatchRejectedDownstream.accept({ it.buyingOrder() == order1 }, e1)
+    1 * orderMatchDownstream.accept({ it.buyerOrder() == order1 }) >> { throw e1 }
+    1 * orderMatchRejectedDownstream.accept({ it.buyerOrder() == order1 }, e1)
 
     then:
-    1 * orderMatchDownstream.accept({ it.buyingOrder() == order3 }) >> { throw e2 }
-    1 * orderMatchRejectedDownstream.accept({ it.buyingOrder() == order3 }, e2)
+    1 * orderMatchDownstream.accept({ it.buyerOrder() == order3 }) >> { throw e2 }
+    1 * orderMatchRejectedDownstream.accept({ it.buyerOrder() == order3 }, e2)
 
     then:
     0 * orderMatchDownstream._

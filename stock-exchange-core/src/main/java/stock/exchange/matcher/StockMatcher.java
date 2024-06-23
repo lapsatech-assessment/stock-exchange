@@ -23,14 +23,11 @@ public interface StockMatcher {
      * The method is called each time the order matching mechanism identifies a pair
      * of suitable orders for a trade
      * 
-     * @param buyerOrderId     Buyer order ID
-     * @param sellerOrderId    Seller order ID
-     * @param quantity         Trade volume
-     * @param buyerOrderPrice  Buy order price
-     * @param sellerOrderPrice Sell order price
+     * @param buyerOrderId  Buyer order ID
+     * @param sellerOrderId Seller order ID
+     * @param quantity      Trade volume
      */
-    void onOrderMatched(long buyerOrderId, long sellerOrderId, int quantity, double buyerOrderPrice,
-        double sellerOrderPrice);
+    void onOrderMatched(long buyerOrderId, long sellerOrderId, int quantity);
   }
 
   @FunctionalInterface
@@ -124,9 +121,11 @@ public interface StockMatcher {
   boolean removeOrder(long orderId);
 
   /**
-   * The method executes the matching algorithm over all orders that are in the
-   * internal queue of the TradeMatcher sends matching callback events if a match
+   * The method executes the matching algorithm over orders that are in the
+   * internal queue of the TradeMatcher sends matching callback event if a match
    * occurs.
+   * 
+   * The method tries to find first possible match only
    * 
    * The method also updates its internal state by removing fully filled orders
    * from the queue and/or updating the remaining quantity of partially filled
@@ -140,9 +139,11 @@ public interface StockMatcher {
    *                                          partially filled order event
    * @param orderFulfilledEventListener       the event listener receives event on
    *                                          fuly filled order event
+   * @return <code>true</code> if the one match has found or <code>false</code> if
+   *         no matched orders in the queue at the moment
    */
-  void match(
-      DoubleReference marketPriceRef,
+  boolean match(
+      DoubleReference marketPrice,
       OrderMatchedEventListener orderMatchedEventListener,
       OrderPartiallyFilledEventListener orderPartiallyFilledEventListener,
       OrderFulfilledEventListener orderFulfilledEventListener);
