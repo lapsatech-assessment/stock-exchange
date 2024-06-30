@@ -1,6 +1,6 @@
 package stock.exchange.cmd;
 
-public interface ShellCommandParser {
+public interface ShellCommandExecutor {
 
   String BYE_STRING = "BYE";
 

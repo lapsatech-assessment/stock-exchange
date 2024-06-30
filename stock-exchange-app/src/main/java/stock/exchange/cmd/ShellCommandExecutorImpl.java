@@ -3,7 +3,7 @@ package stock.exchange.cmd;
 import stock.exchange.StockExchangeFacade;
 import stock.exchange.common.CommonException;
 
-public class ShellCommandParserImpl implements ShellCommandParser {
+public class ShellCommandExecutorImpl implements ShellCommandExecutor {
 
   private static final String ADD = "ADD";
   private static final String ERR = "ERR";
@@ -28,7 +28,7 @@ public class ShellCommandParserImpl implements ShellCommandParser {
 
   private final StockExchangeFacade stockExchangeFacade;
 
-  public ShellCommandParserImpl(StockExchangeFacade stockExchangeFacade) {
+  public ShellCommandExecutorImpl(StockExchangeFacade stockExchangeFacade) {
     this.stockExchangeFacade = stockExchangeFacade;
   }
 
@@ -85,7 +85,8 @@ public class ShellCommandParserImpl implements ShellCommandParser {
                   }
 
                 } catch (ArrayIndexOutOfBoundsException | NumberFormatException e) {
-                  throw new InvalidInput(CREATE + " " + COMPOSITE + " <id> <symbol> <securitySymbol1...> <securitySymbolN>");
+                  throw new InvalidInput(
+                      CREATE + " " + COMPOSITE + " <id> <symbol> <securitySymbol1...> <securitySymbolN>");
                 }
                 var instrument = stockExchangeFacade.createComposite(instrumentId, symbol, compositeSymbols);
                 return CREATE + ": " + instrument;

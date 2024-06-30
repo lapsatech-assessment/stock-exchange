@@ -18,9 +18,9 @@ class MarketDataWorldTest extends Specification {
     def secur1 = subject.createSecurity(1, 'secur1', 10.0d)
 
     then:
-    secur1.id == 1
-    secur1.symbol == 'secur1'
-    secur1.marketPrice.asDouble == 10.0d
+    secur1.id() == 1
+    secur1.symbol() == 'secur1'
+    secur1.marketPrice().asDouble == 10.0d
 
     expect:
     subject.getAllInstruments().collect() == [secur1]
@@ -144,8 +144,8 @@ class MarketDataWorldTest extends Specification {
     subject.acceptLastTradePrice(1, 30, 1000)
 
     then:
-    secur1.marketPrice.asDouble == 30d
-    secur2.marketPrice.asDouble == 20d
+    secur1.marketPrice().asDouble == 30d
+    secur2.marketPrice().asDouble == 20d
     comp1.marketPrice.asDouble == 25d
 
     and:

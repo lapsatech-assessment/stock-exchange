@@ -16,17 +16,17 @@ public class StockExchangeFacadeImpl implements StockExchangeFacade {
 
   private final InstrumentManager instrumentManager;
   private final TraderManager traderManager;
-  private final StockMarketRunner stockMarketRunner;
+  private final OrderBookRunManager orderBookRunManager;
   private final OrderBookManager orderBookManager;
 
   public StockExchangeFacadeImpl(
       InstrumentManager instrumentManager,
       TraderManager traderManager,
-      StockMarketRunner stockMarketRunner,
+      OrderBookRunManager orderBookRunManager,
       OrderBookManager orderBookManager) {
     this.instrumentManager = instrumentManager;
     this.traderManager = traderManager;
-    this.stockMarketRunner = stockMarketRunner;
+    this.orderBookRunManager = orderBookRunManager;
     this.orderBookManager = orderBookManager;
   }
 
@@ -39,7 +39,7 @@ public class StockExchangeFacadeImpl implements StockExchangeFacade {
   public SecurityRecord createSecurity(int instrumentId, String symbol, double initialPrice) {
     var instrument = instrumentManager.createSecurity(instrumentId, symbol, initialPrice);
     OrderBook book = orderBookManager.createOrderBook(instrument);
-    stockMarketRunner.run(book, Duration.ofMillis(1000));
+    orderBookRunManager.runBook(book, Duration.ofMillis(1000));
     return instrument;
   }
 

@@ -15,6 +15,7 @@ import stock.exchange.domain.CompositeRecord;
 import stock.exchange.domain.DoubleReference;
 import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.SecurityRecord;
+import util.nogc.MoreArrays;
 
 /**
  * A simple implementation of a market data service includes functions for
@@ -145,9 +146,11 @@ public class MarketDataWorld implements MarketDataReads, MarketDataWrites, Instr
         throw new DuplicateInstrumentException();
       }
 
-      SecurityRecord[] securities = new SecurityRecord[componentSymbols.length];
-      DoubleReference[] securityPrices = new DoubleReference[componentSymbols.length];
-      for (int i = 0; i < componentSymbols.length; i++) {
+      int newsize = MoreArrays.distinct(componentSymbols, String::compareToIgnoreCase);
+
+      SecurityRecord[] securities = new SecurityRecord[newsize];
+      DoubleReference[] securityPrices = new DoubleReference[newsize];
+      for (int i = 0; i < newsize; i++) {
         if (instrumentsBySymbol.get(componentSymbols[i]) instanceof SecurityRecord sr) {
           securities[i] = sr;
           securityPrices[i] = sr.marketPrice();

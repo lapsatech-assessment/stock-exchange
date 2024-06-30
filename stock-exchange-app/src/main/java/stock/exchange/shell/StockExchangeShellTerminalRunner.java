@@ -5,18 +5,18 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import stock.exchange.cmd.ShellCommandParser;
+import stock.exchange.cmd.ShellCommandExecutor;
 
-public class StockExchangeShellRunner implements Runnable {
+public class StockExchangeShellTerminalRunner implements Runnable {
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
-  private final ShellCommandParser shellCommandParser;
+  private final ShellCommandExecutor shellCommandExecutor;
   private final ShellTerminal shellTerminal;
 
   private volatile boolean stopped = false;
 
-  public StockExchangeShellRunner(ShellCommandParser shellCommandParser, ShellTerminal shellTerminal) {
-    this.shellCommandParser = shellCommandParser;
+  public StockExchangeShellTerminalRunner(ShellCommandExecutor shellCommandExecutor, ShellTerminal shellTerminal) {
+    this.shellCommandExecutor = shellCommandExecutor;
     this.shellTerminal = shellTerminal;
   }
 
@@ -28,9 +28,8 @@ public class StockExchangeShellRunner implements Runnable {
         if (line == null) {
           continue;
         }
-
-        String message = shellCommandParser.execute(line);
-        if (ShellCommandParser.BYE_STRING.equals(message)) {
+        String message = shellCommandExecutor.execute(line);
+        if (ShellCommandExecutor.BYE_STRING.equals(message)) {
           shellTerminal.writeLine("See ya!");
           stopped = true;
         } else {

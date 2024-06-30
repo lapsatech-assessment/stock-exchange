@@ -11,12 +11,12 @@ import java.net.Socket;
 public class ShellTerminalTcpSocket implements ShellTerminal {
 
   private final BufferedReader br;
-  private final BufferedWriter pr;
+  private final BufferedWriter pw;
   private final Socket socket;
 
   public ShellTerminalTcpSocket(Socket socket) throws IOException {
     this.br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-    this.pr = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+    this.pw = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
     this.socket = socket;
     socket.setSoTimeout(1000);
   }
@@ -32,9 +32,9 @@ public class ShellTerminalTcpSocket implements ShellTerminal {
 
   @Override
   public void writeLine(String line) throws IOException {
-    pr.write(line);
-    pr.write(System.lineSeparator());
-    pr.flush();
+    pw.write(line);
+    pw.write(System.lineSeparator());
+    pw.flush();
   }
 
   @Override
