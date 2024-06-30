@@ -10,6 +10,7 @@ import spock.lang.Timeout
 import spock.lang.Unroll
 import stock.exchange.domain.DoubleReference
 import stock.exchange.domain.OrderMatchRecord
+import stock.exchange.domain.OrderRecord
 import stock.exchange.domain.OrderType
 import stock.exchange.domain.SecurityRecord
 import stock.exchange.domain.TraderRecord
@@ -52,7 +53,7 @@ class OrderBookImplTest extends Specification {
   @Unroll
   def 'successful add new #type order'(def type, def Closure addClosure, def typeExpected, def priceEpxected) {
     when:
-    def order1 = addClosure.call(subject)
+    def order1 = addClosure.call(subject) as OrderRecord
 
     then:
     order1.security() == security
@@ -132,7 +133,7 @@ class OrderBookImplTest extends Specification {
     subject.tick()
 
     then:
-    1 * stockMatcher.match(_, _, _, _)
+    3 * stockMatcher.match(_, _, _, _) >>> [true, true, false]
 
     then:
     0 * stockMatcher._

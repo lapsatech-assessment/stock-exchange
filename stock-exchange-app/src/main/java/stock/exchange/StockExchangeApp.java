@@ -13,8 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import stock.exchange.book.OrderBookManager;
 import stock.exchange.book.OrderBookManagerImpl;
-import stock.exchange.cmd.ShellCommandParser;
-import stock.exchange.cmd.ShellCommandParserImpl;
+import stock.exchange.cmd.ShellCommandExecutor;
+import stock.exchange.cmd.ShellCommandExecutorImpl;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.TradeRecord;
 import stock.exchange.instrument.InstrumentManager;
@@ -23,8 +23,10 @@ import stock.exchange.instrument.MarketDataWrites;
 import stock.exchange.integration.AppendToFileDownstream;
 import stock.exchange.integration.Downstream;
 import stock.exchange.integration.FanOutDownstream;
+import stock.exchange.shell.ShellTerminal;
 import stock.exchange.shell.ShellTerminalConsole;
-import stock.exchange.shell.StockExchangeShellRunner;
+import stock.exchange.shell.ShellTerminalTcpSocket;
+import stock.exchange.shell.StockExchangeShellTerminalRunner;
 import stock.exchange.shell.TcpSocketTerminalService;
 import stock.exchange.trade.TradeGeneratorImpl;
 import stock.exchange.trader.TraderManager;
@@ -37,7 +39,7 @@ public class StockExchangeApp {
 
     ExecutorService pool = Executors.newFixedThreadPool(2);
 
-    try (StockMarketRunner stockMarketRunner = new StockMarketRunner()) {
+    try (StockMarketEngine stockMarketEngine = new StockMarketEngineImpl()) {
 
       MarketDataWorld marketDataWorld = new MarketDataWorld();
       InstrumentManager instrumentManager = marketDataWorld;
@@ -107,25 +109,26 @@ public class StockExchangeApp {
       StockExchangeFacade stockExchangeFacade = new StockExchangeFacadeImpl(
           instrumentManager,
           traderManager,
-          stockMarketRunner,
+          stockMarketEngine,
           orderBookManager);
 
-      ShellCommandParser shellCommandParser = new ShellCommandParserImpl(stockExchangeFacade);
+      ShellCommandExecutor shellCommandExecutor = new ShellCommandExecutorImpl(stockExchangeFacade);
 
       CompletableFuture.runAsync(
-          new TcpSocketTerminalService(shellCommandParser, 7070),
+          new TcpSocketTerminalService(
+              socket -> {
+                ShellTerminal terminal = new ShellTerminalTcpSocket(socket);
+                return new StockExchangeShellTerminalRunner(shellCommandExecutor, terminal);
+              },
+              7070),
           pool);
 
       CompletableFuture.runAsync(
-          new StockExchangeShellRunner(
-              shellCommandParser,
-              new ShellTerminalConsole(System.console())),
+          new StockExchangeShellTerminalRunner(shellCommandExecutor, new ShellTerminalConsole(System.console())),
           pool)
           .join();
 
-    } finally
-
-    {
+    } finally {
       pool.shutdownNow();
       try {
         pool.awaitTermination(60 * 1000, TimeUnit.MILLISECONDS);

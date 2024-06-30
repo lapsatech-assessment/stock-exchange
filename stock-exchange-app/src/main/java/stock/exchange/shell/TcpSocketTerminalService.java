@@ -13,22 +13,24 @@ import javax.net.ServerSocketFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import stock.exchange.cmd.ShellCommandParser;
-
 public class TcpSocketTerminalService implements Runnable {
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
 
-  private final ShellCommandParser shellCommandParser;
+  @FunctionalInterface
+  public static interface SocketRunnerFactory {
+    Runnable createRunner(Socket socket) throws IOException;
+  }
+
+  private final SocketRunnerFactory taskFactory;
   private final ExecutorService pool;
-  private volatile boolean stopped = false;
   private final int port;
 
   public TcpSocketTerminalService(
-      ShellCommandParser shellCommandParser,
+      SocketRunnerFactory taskFactory,
       int port) {
     this.pool = Executors.newCachedThreadPool();
-    this.shellCommandParser = shellCommandParser;
+    this.taskFactory = taskFactory;
     this.port = port;
   }
 
@@ -37,14 +39,14 @@ public class TcpSocketTerminalService implements Runnable {
     ServerSocketFactory ssf = ServerSocketFactory.getDefault();
     try (ServerSocket ss = ssf.createServerSocket(port)) {
       ss.setSoTimeout(500);
-      while (!Thread.interrupted() && !stopped) {
+      while (!Thread.interrupted()) {
         Socket socket;
         try {
           socket = ss.accept();
         } catch (java.net.SocketTimeoutException e) {
           continue;
         }
-        pool.submit(new StockExchangeShellRunner(shellCommandParser, new ShellTerminalTcpSocket(socket)));
+        pool.submit(taskFactory.createRunner(socket));
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
