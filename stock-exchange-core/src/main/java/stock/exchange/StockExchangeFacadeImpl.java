@@ -9,6 +9,7 @@ import stock.exchange.domain.InstrumentRecord;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.SecurityRecord;
 import stock.exchange.domain.TraderRecord;
+import stock.exchange.engine.OrderBookRunner;
 import stock.exchange.instrument.InstrumentManager;
 import stock.exchange.trader.TraderManager;
 
@@ -16,17 +17,17 @@ public class StockExchangeFacadeImpl implements StockExchangeFacade {
 
   private final InstrumentManager instrumentManager;
   private final TraderManager traderManager;
-  private final OrderBookRunManager orderBookRunManager;
+  private final OrderBookRunner orderBookRunner;
   private final OrderBookManager orderBookManager;
 
   public StockExchangeFacadeImpl(
       InstrumentManager instrumentManager,
       TraderManager traderManager,
-      OrderBookRunManager orderBookRunManager,
+      OrderBookRunner orderBookRunner,
       OrderBookManager orderBookManager) {
     this.instrumentManager = instrumentManager;
     this.traderManager = traderManager;
-    this.orderBookRunManager = orderBookRunManager;
+    this.orderBookRunner = orderBookRunner;
     this.orderBookManager = orderBookManager;
   }
 
@@ -39,7 +40,7 @@ public class StockExchangeFacadeImpl implements StockExchangeFacade {
   public SecurityRecord createSecurity(int instrumentId, String symbol, double initialPrice) {
     var instrument = instrumentManager.createSecurity(instrumentId, symbol, initialPrice);
     OrderBook book = orderBookManager.createOrderBook(instrument);
-    orderBookRunManager.runBook(book, Duration.ofMillis(1000));
+    orderBookRunner.runOrderBook(book, Duration.ofMillis(1000));
     return instrument;
   }
 

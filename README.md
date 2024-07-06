@@ -5,11 +5,11 @@ To run the sample app execute:
     mvn install
     mvn -f stock-exchange-app/ -Prun
 
-The app will build and start, and you will get the console prompt afterward
+The app get built and started, and the user will get the console prompt afterwards
 
     >
 
-You type the command, and the system executes it in the stock exchange system.
+The user types a command, and the system executes it in the stock exchange system.
 Additional terminal sessions can be created in parallel using Telnet
 
     telnet localhost 7070

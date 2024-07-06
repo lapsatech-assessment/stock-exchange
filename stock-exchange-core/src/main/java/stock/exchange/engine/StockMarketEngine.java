@@ -1,4 +1,7 @@
-package stock.exchange;
+package stock.exchange.engine;
+
+import static java.util.concurrent.CompletableFuture.allOf;
+import static java.util.concurrent.CompletableFuture.runAsync;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -16,19 +19,20 @@ import it.unimi.dsi.fastutil.objects.ObjectList;
 import stock.exchange.book.DuplicateOrderBookException;
 import stock.exchange.book.OrderBook;
 
-public class StockMarketEngineImpl implements StockMarketEngine {
+public class StockMarketEngine implements AutoCloseable, OrderBookRunner {
 
   private final Logger logger = LoggerFactory.getLogger(getClass());
+  private final Object sync = new Object();
 
-  private static class OrderBookRunner implements Runnable {
+  private static class Runner implements Runnable {
 
     private final Logger logger;
     private final Duration tickerInterval;
     private final OrderBook book;
     private volatile boolean stopped = false;
 
-    private OrderBookRunner(OrderBook book, Duration tickerInterval) {
-      this.logger = LoggerFactory.getLogger(OrderBookRunner.class + "." + book.instrument().symbol());
+    private Runner(OrderBook book, Duration tickerInterval) {
+      this.logger = LoggerFactory.getLogger(Runner.class + "." + book.instrument().symbol());
       this.book = book;
       this.tickerInterval = tickerInterval;
     }
@@ -60,29 +64,38 @@ public class StockMarketEngineImpl implements StockMarketEngine {
   private final ExecutorService threadPools = Executors.newCachedThreadPool();
 
   private final ObjectList<CompletableFuture<?>> allProcesses = new ObjectArrayList<>();
-  private final Int2ObjectMap<OrderBookRunner> runners = new Int2ObjectArrayMap<>();
+  private final Int2ObjectMap<Runner> runners = new Int2ObjectArrayMap<>();
 
   @Override
-  public synchronized void runBook(OrderBook book, Duration tickerInterval) {
-    if (threadPools.isShutdown()) {
-      throw new IllegalStateException("Market is shut down");
+  public void runOrderBook(OrderBook book, Duration tickerInterval) {
+    synchronized (sync) {
+      if (threadPools.isShutdown()) {
+        throw new StockMarketIsShutdownException();
+      }
+      if (runners.containsKey(book.instrument().id())) {
+        throw new DuplicateOrderBookException();
+      }
+      Runner runner = new Runner(book, tickerInterval);
+      allProcesses.add(runAsync(runner, threadPools));
+      runners.put(book.instrument().id(), runner);
     }
-    if (runners.containsKey(book.instrument().id())) {
-      throw new DuplicateOrderBookException();
+  }
+
+  public boolean shutdown() {
+    synchronized (sync) {
+      threadPools.shutdownNow();
     }
-    OrderBookRunner runner = new OrderBookRunner(book, tickerInterval);
-    runners.put(book.instrument().id(), runner);
-    allProcesses.add(CompletableFuture.runAsync(runner, threadPools));
+    allOf(allProcesses.toArray(new CompletableFuture[allProcesses.size()])).join();
+    try {
+      return threadPools.awaitTermination(60 * 1000, TimeUnit.MILLISECONDS);
+    } catch (InterruptedException e) {
+      logger.warn("Unable to await termination of threads, got interrupted", e);
+      return false;
+    }
   }
 
   @Override
-  public void shutdown() {
-    threadPools.shutdownNow();
-    CompletableFuture.allOf(allProcesses.toArray(new CompletableFuture[allProcesses.size()])).join();
-    try {
-      threadPools.awaitTermination(60 * 1000, TimeUnit.MILLISECONDS);
-    } catch (InterruptedException e) {
-      logger.warn("Unable to await termination of threads, got interrupted", e);
-    }
+  public void close() {
+    shutdown();
   }
 }

@@ -1,8 +1,9 @@
 package stock.exchange;
 
+import static java.util.concurrent.CompletableFuture.runAsync;
+
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -17,6 +18,8 @@ import stock.exchange.cmd.ShellCommandExecutor;
 import stock.exchange.cmd.ShellCommandExecutorImpl;
 import stock.exchange.domain.OrderRecord;
 import stock.exchange.domain.TradeRecord;
+import stock.exchange.engine.OrderBookRunner;
+import stock.exchange.engine.StockMarketEngine;
 import stock.exchange.instrument.InstrumentManager;
 import stock.exchange.instrument.MarketDataWorld;
 import stock.exchange.instrument.MarketDataWrites;
@@ -39,11 +42,12 @@ public class StockExchangeApp {
 
     ExecutorService pool = Executors.newFixedThreadPool(2);
 
-    try (StockMarketEngine stockMarketEngine = new StockMarketEngineImpl()) {
+    try (StockMarketEngine stockMarketEngine = new StockMarketEngine()) {
 
       MarketDataWorld marketDataWorld = new MarketDataWorld();
       InstrumentManager instrumentManager = marketDataWorld;
       MarketDataWrites marketDataWrites = marketDataWorld;
+      OrderBookRunner orderBookRunner = stockMarketEngine;
 
       Downstream<TradeRecord> tradesPostingToFileDownstream = new AppendToFileDownstream<>(
           Paths.get("trades.txt"),
@@ -109,12 +113,12 @@ public class StockExchangeApp {
       StockExchangeFacade stockExchangeFacade = new StockExchangeFacadeImpl(
           instrumentManager,
           traderManager,
-          stockMarketEngine,
+          orderBookRunner,
           orderBookManager);
 
       ShellCommandExecutor shellCommandExecutor = new ShellCommandExecutorImpl(stockExchangeFacade);
 
-      CompletableFuture.runAsync(
+      runAsync(
           new TcpSocketTerminalService(
               socket -> {
                 ShellTerminal terminal = new ShellTerminalTcpSocket(socket);
@@ -123,10 +127,10 @@ public class StockExchangeApp {
               7070),
           pool);
 
-      CompletableFuture.runAsync(
+      runAsync(
           new StockExchangeShellTerminalRunner(shellCommandExecutor, new ShellTerminalConsole(System.console())),
           pool)
-          .join();
+              .join();
 
     } finally {
       pool.shutdownNow();
